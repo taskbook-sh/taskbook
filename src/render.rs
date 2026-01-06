@@ -139,7 +139,7 @@ impl Render {
         };
 
         let correlation = self.get_correlation(items);
-        println!("\n {} {} {}", display_title, correlation, "");
+        println!("\n {} {}", display_title, correlation);
     }
 
     fn display_item_by_board(&self, item: &StorageItem) {

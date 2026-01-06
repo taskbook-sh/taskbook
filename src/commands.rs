@@ -4,6 +4,7 @@ use crate::error::Result;
 use crate::taskbook::Taskbook;
 
 /// Execute CLI commands
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     input: Vec<String>,
     archive: bool,

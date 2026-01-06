@@ -102,6 +102,7 @@ impl Taskbook {
         boards
     }
 
+    #[allow(dead_code)]
     fn get_dates(&self, data: &HashMap<String, StorageItem>) -> Vec<String> {
         let mut dates = Vec::new();
 
