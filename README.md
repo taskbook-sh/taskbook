@@ -10,6 +10,28 @@ Download the latest binary from [releases](https://github.com/alexanderdavidsen/
 cargo install --path .
 ```
 
+### Nix Flake
+
+Add to your system flake:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    taskbook-rs.url = "github:alexanderdavidsen/taskbook-rs";
+  };
+
+  outputs = { nixpkgs, taskbook-rs, ... }: {
+    darwinConfigurations.myhost = darwin.lib.darwinSystem {
+      modules = [{
+        nixpkgs.overlays = [ taskbook-rs.overlays.default ];
+        environment.systemPackages = with pkgs; [ taskbook-rs ];
+      }];
+    };
+  };
+}
+```
+
 ## Usage
 
 ```bash
