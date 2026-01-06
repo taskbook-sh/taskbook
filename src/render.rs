@@ -286,6 +286,7 @@ impl Render {
         println!("  {} {}\n", status, notes_status);
     }
 
+    #[allow(dead_code)]
     pub fn invalid_custom_app_dir(&self, path: &str) {
         eprintln!(
             "\n {} Custom app directory was not found on your system: {}",
@@ -294,6 +295,7 @@ impl Render {
         );
     }
 
+    #[allow(dead_code)]
     pub fn missing_taskbook_dir_flag_value(&self) {
         eprintln!(
             "\n  {} Please provide a value for --taskbook-dir or remove the flag.",

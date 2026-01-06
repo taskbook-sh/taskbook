@@ -1,4 +1,5 @@
 /// Common trait for all items (tasks and notes)
+#[allow(dead_code)]
 pub trait Item {
     fn id(&self) -> u64;
     fn date(&self) -> &str;

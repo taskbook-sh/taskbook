@@ -89,6 +89,7 @@ impl Config {
     }
 
     /// Get the resolved taskbook directory path
+    #[allow(dead_code)]
     pub fn get_taskbook_directory(&self) -> PathBuf {
         Self::format_taskbook_dir(&self.taskbook_directory)
     }

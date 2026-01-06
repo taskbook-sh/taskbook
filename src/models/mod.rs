@@ -98,6 +98,7 @@ impl StorageItem {
         }
     }
 
+    #[allow(dead_code)]
     pub fn as_note(&self) -> Option<&Note> {
         match self {
             StorageItem::Task(_) => None,
