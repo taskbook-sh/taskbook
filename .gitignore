@@ -15,6 +15,7 @@ devenv.lock
 .vscode/
 *.swp
 *.swo
-
+.claude
 # OS
 .DS_Store
+result
