@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Usage: scripts/release.sh <version> [remote]
 
-Updates overlay.nix version, commits, tags, and pushes.
+Updates overlay.nix and Cargo.toml versions, commits, tags, and pushes.
 
 Examples:
   scripts/release.sh 0.1.2
@@ -33,13 +33,14 @@ if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
 fi
 
 perl -0pi -e "s/version = \"[^\"]+\";/version = \"${version}\";/" overlay.nix
+perl -0pi -e "s/^version = \"[^\"]+\"/version = \"${version}\"/m" Cargo.toml
 
-if git diff --quiet -- overlay.nix; then
-  echo "overlay.nix already at version ${version}." >&2
+if git diff --quiet -- overlay.nix Cargo.toml; then
+  echo "overlay.nix and Cargo.toml already at version ${version}." >&2
   exit 1
 fi
 
-git add overlay.nix
+git add overlay.nix Cargo.toml
 git commit -m "Release ${tag}"
 git tag "${tag}"
 
