@@ -56,6 +56,67 @@ tb --clear                  # Delete all completed tasks
 tb --copy <id> [id...]      # Copy descriptions to clipboard
 ```
 
+## Configuration
+
+Configuration is stored in `~/.taskbook.json`. Example:
+
+```json
+{
+  "taskbookDirectory": "~",
+  "displayCompleteTasks": true,
+  "displayProgressOverview": true,
+  "theme": "catppuccin-macchiato"
+}
+```
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `taskbookDirectory` | Directory for storing taskbook data | `~` (creates `~/.taskbook/`) |
+| `displayCompleteTasks` | Show completed tasks in board view | `true` |
+| `displayProgressOverview` | Show progress statistics | `true` |
+| `theme` | Color theme (preset name or custom colors) | `"default"` |
+
+### Themes
+
+Available preset themes:
+
+- `default` - Neutral gray, works on most terminals
+- `catppuccin-macchiato` - [Catppuccin](https://catppuccin.com/) Macchiato variant
+- `catppuccin-mocha` - Catppuccin Mocha (darkest)
+- `catppuccin-frappe` - Catppuccin Frappé (medium)
+- `catppuccin-latte` - Catppuccin Latte (light)
+- `high-contrast` - High contrast for accessibility
+
+#### Custom Theme
+
+You can define custom RGB colors for each element:
+
+```json
+{
+  "theme": {
+    "muted": { "r": 165, "g": 173, "b": 203 },
+    "success": { "r": 166, "g": 218, "b": 149 },
+    "warning": { "r": 238, "g": 212, "b": 159 },
+    "error": { "r": 237, "g": 135, "b": 150 },
+    "info": { "r": 138, "g": 173, "b": 244 },
+    "pending": { "r": 198, "g": 160, "b": 246 },
+    "starred": { "r": 238, "g": 212, "b": 159 }
+  }
+}
+```
+
+| Color | Used For |
+|-------|----------|
+| `muted` | Secondary text (IDs, labels, completed tasks) |
+| `success` | Checkmarks, completed counts, normal priority |
+| `warning` | In-progress indicators, medium priority |
+| `error` | Error messages, high priority |
+| `info` | Notes, in-progress counts |
+| `pending` | Pending task icons and counts |
+| `starred` | Star indicators |
+
 ## Data Compatibility
 
 This implementation uses the same data format and directory (`~/.taskbook/`) as the original Node.js version, allowing seamless migration.

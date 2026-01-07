@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 
-use crate::config::Config;
+use crate::config::{Config, Rgb, ThemeColors};
 use crate::models::StorageItem;
 
 /// Statistics about items
@@ -23,17 +23,65 @@ struct ItemStats {
 
 pub struct Render {
     config: Config,
+    theme: ThemeColors,
+}
+
+/// Trait extension for applying RGB colors
+trait RgbColorize {
+    fn rgb(self, color: Rgb) -> ColoredString;
+}
+
+impl<S: AsRef<str>> RgbColorize for S {
+    fn rgb(self, color: Rgb) -> ColoredString {
+        self.as_ref().truecolor(color.r, color.g, color.b)
+    }
 }
 
 impl Render {
     pub fn new(config: Config) -> Self {
-        Self { config }
+        let theme = config.theme.resolve();
+        Self { config, theme }
+    }
+
+    /// Apply muted color to text
+    fn muted(&self, text: &str) -> ColoredString {
+        text.rgb(self.theme.muted)
+    }
+
+    /// Apply success color to text
+    fn success(&self, text: &str) -> ColoredString {
+        text.rgb(self.theme.success)
+    }
+
+    /// Apply warning color to text
+    fn warning(&self, text: &str) -> ColoredString {
+        text.rgb(self.theme.warning)
+    }
+
+    /// Apply error color to text
+    fn error(&self, text: &str) -> ColoredString {
+        text.rgb(self.theme.error)
+    }
+
+    /// Apply info color to text
+    fn info(&self, text: &str) -> ColoredString {
+        text.rgb(self.theme.info)
+    }
+
+    /// Apply pending color to text
+    fn pending(&self, text: &str) -> ColoredString {
+        text.rgb(self.theme.pending)
+    }
+
+    /// Apply starred color to text
+    fn starred(&self, text: &str) -> ColoredString {
+        text.rgb(self.theme.starred)
     }
 
     fn color_boards(&self, boards: &[String]) -> String {
         boards
             .iter()
-            .map(|b| b.dimmed().to_string())
+            .map(|b| self.muted(b).to_string())
             .collect::<Vec<_>>()
             .join(" ")
     }
@@ -50,14 +98,13 @@ impl Render {
         if age == 0 {
             String::new()
         } else {
-            format!("{}d", age).dimmed().to_string()
+            self.muted(&format!("{}d", age)).to_string()
         }
     }
 
     fn get_correlation(&self, items: &[&StorageItem]) -> String {
         let stats = self.get_item_stats(items);
-        format!("[{}/{}]", stats.complete, stats.tasks)
-            .dimmed()
+        self.muted(&format!("[{}/{}]", stats.complete, stats.tasks))
             .to_string()
     }
 
@@ -88,7 +135,7 @@ impl Render {
 
     fn get_star(&self, item: &StorageItem) -> String {
         if item.is_starred() {
-            "★".yellow().to_string()
+            self.starred("★").to_string()
         } else {
             String::new()
         }
@@ -98,7 +145,7 @@ impl Render {
         let id = item.id();
         let id_str = id.to_string();
         let padding = " ".repeat(4 - id_str.len());
-        format!("{}{}", padding, format!("{}.", id).dimmed())
+        format!("{}{}", padding, self.muted(&format!("{}.", id)))
     }
 
     fn build_message(&self, item: &StorageItem) -> String {
@@ -108,20 +155,20 @@ impl Render {
 
             if !task.is_complete && priority > 1 {
                 let msg = if priority == 2 {
-                    description.yellow().underline().to_string()
+                    self.warning(description).underline().to_string()
                 } else {
-                    description.red().underline().to_string()
+                    self.error(description).underline().to_string()
                 };
 
                 let indicator = if priority == 2 {
-                    "(!)".yellow().to_string()
+                    self.warning("(!)").to_string()
                 } else {
-                    "(!!)".red().to_string()
+                    self.error("(!!)").to_string()
                 };
 
                 format!("{} {}", msg, indicator)
             } else if task.is_complete {
-                description.dimmed().to_string()
+                self.muted(description).strikethrough().to_string()
             } else {
                 description.to_string()
             }
@@ -133,7 +180,7 @@ impl Render {
     fn display_title(&self, title: &str, items: &[&StorageItem]) {
         let today = chrono::Local::now().format("%a %b %d %Y").to_string();
         let display_title = if title == today {
-            format!("{} {}", title.underline(), "[Today]".dimmed())
+            format!("{} {}", title.underline(), self.muted("[Today]"))
         } else {
             title.underline().to_string()
         };
@@ -178,14 +225,14 @@ impl Render {
     fn get_item_icon(&self, item: &StorageItem) -> String {
         if let Some(task) = item.as_task() {
             if task.is_complete {
-                "✔".green().to_string()
+                self.success("✔").to_string()
             } else if task.in_progress {
-                "…".yellow().to_string()
+                self.warning("…").to_string()
             } else {
-                "☐".magenta().to_string()
+                self.pending("☐").to_string()
             }
         } else {
-            "●".blue().to_string()
+            self.info("●").to_string()
         }
     }
 
@@ -248,31 +295,31 @@ impl Render {
         }
 
         let percent_str = if stats.percent >= 75 {
-            format!("{}%", stats.percent).green().to_string()
+            self.success(&format!("{}%", stats.percent)).to_string()
         } else if stats.percent >= 50 {
-            format!("{}%", stats.percent).yellow().to_string()
+            self.warning(&format!("{}%", stats.percent)).to_string()
         } else {
             format!("{}%", stats.percent)
         };
 
         let status = format!(
             "{} {} {} {} {} {} {} {}",
-            stats.complete.to_string().green(),
-            "done".dimmed(),
-            "·".dimmed(),
-            stats.in_progress.to_string().blue(),
-            "in-progress".dimmed(),
-            "·".dimmed(),
-            stats.pending.to_string().magenta(),
-            "pending".dimmed(),
+            self.success(&stats.complete.to_string()),
+            self.muted("done"),
+            self.muted("·"),
+            self.info(&stats.in_progress.to_string()),
+            self.muted("in-progress"),
+            self.muted("·"),
+            self.pending(&stats.pending.to_string()),
+            self.muted("pending"),
         );
 
         let notes_word = if stats.notes == 1 { "note" } else { "notes" };
         let notes_status = format!(
             "{} {} {}",
-            "·".dimmed(),
-            stats.notes.to_string().blue(),
-            notes_word.dimmed()
+            self.muted("·"),
+            self.info(&stats.notes.to_string()),
+            self.muted(notes_word)
         );
 
         if stats.pending + stats.in_progress + stats.complete + stats.notes == 0 {
@@ -281,7 +328,7 @@ impl Render {
 
         println!(
             "\n  {}",
-            format!("{} of all tasks complete.", percent_str).dimmed()
+            self.muted(&format!("{} of all tasks complete.", percent_str))
         );
         println!("  {} {}\n", status, notes_status);
     }
@@ -290,8 +337,8 @@ impl Render {
     pub fn invalid_custom_app_dir(&self, path: &str) {
         eprintln!(
             "\n {} Custom app directory was not found on your system: {}",
-            "✖".red(),
-            path.red()
+            self.error("✖"),
+            self.error(path)
         );
     }
 
@@ -299,24 +346,24 @@ impl Render {
     pub fn missing_taskbook_dir_flag_value(&self) {
         eprintln!(
             "\n  {} Please provide a value for --taskbook-dir or remove the flag.",
-            "✖".red()
+            self.error("✖")
         );
     }
 
     pub fn invalid_id(&self, id: u64) {
         eprintln!(
             "\n {} Unable to find item with id: {}",
-            "✖".red(),
-            id.to_string().dimmed()
+            self.error("✖"),
+            self.muted(&id.to_string())
         );
     }
 
     pub fn invalid_ids_number(&self) {
-        eprintln!("\n {} More than one ids were given as input", "✖".red());
+        eprintln!("\n {} More than one ids were given as input", self.error("✖"));
     }
 
     pub fn invalid_priority(&self) {
-        eprintln!("\n {} Priority can only be 1, 2 or 3", "✖".red());
+        eprintln!("\n {} Priority can only be 1, 2 or 3", self.error("✖"));
     }
 
     pub fn mark_complete(&self, ids: &[u64]) {
@@ -331,9 +378,9 @@ impl Render {
         let word = if ids.len() > 1 { "tasks" } else { "task" };
         println!(
             "\n {} Checked {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
@@ -349,9 +396,9 @@ impl Render {
         let word = if ids.len() > 1 { "tasks" } else { "task" };
         println!(
             "\n {} Unchecked {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
@@ -367,9 +414,9 @@ impl Render {
         let word = if ids.len() > 1 { "tasks" } else { "task" };
         println!(
             "\n {} Started {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
@@ -383,7 +430,7 @@ impl Render {
             .collect::<Vec<_>>()
             .join(", ");
         let word = if ids.len() > 1 { "tasks" } else { "task" };
-        println!("\n {} Paused {}: {}", "✔".green(), word, ids_str.dimmed());
+        println!("\n {} Paused {}: {}", self.success("✔"), word, self.muted(&ids_str));
     }
 
     pub fn mark_starred(&self, ids: &[u64]) {
@@ -398,9 +445,9 @@ impl Render {
         let word = if ids.len() > 1 { "items" } else { "item" };
         println!(
             "\n {} Starred {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
@@ -416,39 +463,39 @@ impl Render {
         let word = if ids.len() > 1 { "items" } else { "item" };
         println!(
             "\n {} Unstarred {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
     pub fn missing_boards(&self) {
-        eprintln!("\n {} No boards were given as input", "✖".red());
+        eprintln!("\n {} No boards were given as input", self.error("✖"));
     }
 
     pub fn missing_desc(&self) {
-        eprintln!("\n {} No description was given as input", "✖".red());
+        eprintln!("\n {} No description was given as input", self.error("✖"));
     }
 
     pub fn missing_id(&self) {
-        eprintln!("\n {} No id was given as input", "✖".red());
+        eprintln!("\n {} No id was given as input", self.error("✖"));
     }
 
     pub fn success_create(&self, id: u64, is_task: bool) {
         let item_type = if is_task { "task:" } else { "note:" };
         println!(
             "\n {} Created {} {}",
-            "✔".green(),
+            self.success("✔"),
             item_type,
-            id.to_string().dimmed()
+            self.muted(&id.to_string())
         );
     }
 
     pub fn success_edit(&self, id: u64) {
         println!(
             "\n {} Updated description of item: {}",
-            "✔".green(),
-            id.to_string().dimmed()
+            self.success("✔"),
+            self.muted(&id.to_string())
         );
     }
 
@@ -461,9 +508,9 @@ impl Render {
         let word = if ids.len() > 1 { "items" } else { "item" };
         println!(
             "\n {} Deleted {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
@@ -471,22 +518,22 @@ impl Render {
         let boards_str = boards.join(", ");
         println!(
             "\n {} Move item: {} to {}",
-            "✔".green(),
-            id.to_string().dimmed(),
-            boards_str.dimmed()
+            self.success("✔"),
+            self.muted(&id.to_string()),
+            self.muted(&boards_str)
         );
     }
 
     pub fn success_priority(&self, id: u64, level: u8) {
         let level_str = match level {
-            3 => "high".red().to_string(),
-            2 => "medium".yellow().to_string(),
-            _ => "normal".green().to_string(),
+            3 => self.error("high").to_string(),
+            2 => self.warning("medium").to_string(),
+            _ => self.success("normal").to_string(),
         };
         println!(
             "\n {} Updated priority of task: {} to {}",
-            "✔".green(),
-            id.to_string().dimmed(),
+            self.success("✔"),
+            self.muted(&id.to_string()),
             level_str
         );
     }
@@ -500,9 +547,9 @@ impl Render {
         let word = if ids.len() > 1 { "items" } else { "item" };
         println!(
             "\n {} Restored {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
@@ -519,9 +566,9 @@ impl Render {
         };
         println!(
             "\n {} Copied the {}: {}",
-            "✔".green(),
+            self.success("✔"),
             word,
-            ids_str.dimmed()
+            self.muted(&ids_str)
         );
     }
 
@@ -536,8 +583,8 @@ impl Render {
             .join(", ");
         println!(
             "\n {} Deleted all checked items: {}",
-            "✔".green(),
-            ids_str.dimmed()
+            self.success("✔"),
+            self.muted(&ids_str)
         );
     }
 }
