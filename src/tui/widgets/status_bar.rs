@@ -56,7 +56,7 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
                 ("t", "Task"),
                 ("n", "Note"),
                 ("c", "Check"),
-                ("d", "Delete"),
+                ("h", "Hide done"),
                 ("q", "Quit"),
             ]
         }

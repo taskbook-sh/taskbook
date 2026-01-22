@@ -40,12 +40,30 @@ pub fn render_timeline_view(frame: &mut Frame, app: &App, area: Rect) {
     for date in dates {
         let date_items = grouped.get(&date).unwrap();
 
-        // Count stats for this date
+        // Count stats for this date (always count all tasks)
         let total_tasks: usize = date_items.iter().filter(|i| i.is_task()).count();
         let complete_tasks: usize = date_items.iter()
             .filter_map(|i| i.as_task())
             .filter(|t| t.is_complete)
             .count();
+
+        // Filter items for display (respecting hide_completed)
+        let visible_items: Vec<&StorageItem> = date_items.iter()
+            .filter(|item| {
+                if app.filter.hide_completed {
+                    if let Some(task) = item.as_task() {
+                        return !task.is_complete;
+                    }
+                }
+                true
+            })
+            .copied()
+            .collect();
+
+        // Skip date if all visible items are hidden
+        if visible_items.is_empty() {
+            continue;
+        }
 
         // Date header
         lines.push(Line::from(""));
@@ -73,7 +91,7 @@ pub fn render_timeline_view(frame: &mut Frame, app: &App, area: Rect) {
         item_line_map.push(None);
 
         // Sort items by timestamp (newest first)
-        let mut sorted_items: Vec<&StorageItem> = date_items.clone();
+        let mut sorted_items = visible_items;
         sorted_items.sort_by(|a, b| b.timestamp().cmp(&a.timestamp()));
 
         for item in sorted_items {

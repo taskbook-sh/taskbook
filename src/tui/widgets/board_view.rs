@@ -32,12 +32,29 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
             continue;
         }
 
-        // Count stats for this board
+        // Count stats for this board (always count all tasks for stats)
         let total_tasks: usize = board_items.iter().filter(|i| i.is_task()).count();
         let complete_tasks: usize = board_items.iter()
             .filter_map(|i| i.as_task())
             .filter(|t| t.is_complete)
             .count();
+
+        // Filter items for display (respecting hide_completed)
+        let visible_items: Vec<&StorageItem> = board_items.into_iter()
+            .filter(|item| {
+                if app.filter.hide_completed {
+                    if let Some(task) = item.as_task() {
+                        return !task.is_complete;
+                    }
+                }
+                true
+            })
+            .collect();
+
+        // Skip board if all visible items are hidden
+        if visible_items.is_empty() {
+            continue;
+        }
 
         // Board header
         lines.push(Line::from(""));
@@ -56,7 +73,7 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
         item_line_map.push(None);
 
         // Sort items by ID
-        let mut sorted_items: Vec<&StorageItem> = board_items;
+        let mut sorted_items = visible_items;
         sorted_items.sort_by_key(|item| item.id());
 
         for item in sorted_items {

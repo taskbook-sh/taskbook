@@ -170,6 +170,16 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
                 cursor: 0,
             });
         }
+        // Toggle hide completed
+        KeyCode::Char('h') if app.view != ViewMode::Archive => {
+            app.toggle_hide_completed();
+            let msg = if app.filter.hide_completed {
+                "Hiding completed tasks"
+            } else {
+                "Showing completed tasks"
+            };
+            app.set_status(msg.to_string(), StatusKind::Info);
+        }
 
         _ => {}
     }

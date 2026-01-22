@@ -9,7 +9,7 @@ use crate::tui::app::App;
 use crate::tui::ui::centered_rect;
 
 pub fn render_help_popup(frame: &mut Frame, app: &App) {
-    let area = centered_rect(50, 28, frame.area());
+    let area = centered_rect(50, 32, frame.area());
 
     let block = Block::default()
         .title(" Keybindings ")
@@ -91,7 +91,7 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
             Span::styled("Copy to clipboard", desc_style),
         ]),
         Line::from(""),
-        Line::from(Span::styled("  Views", section_style)),
+        Line::from(Span::styled("  Views & Filters", section_style)),
         Line::from(vec![
             Span::styled("    1       ", key_style),
             Span::styled("Board view", desc_style),
@@ -103,6 +103,14 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
         Line::from(vec![
             Span::styled("    3       ", key_style),
             Span::styled("Archive view", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    h       ", key_style),
+            Span::styled("Toggle hide completed", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    Enter   ", key_style),
+            Span::styled("Filter by board", desc_style),
         ]),
         Line::from(""),
         Line::from(Span::styled("        Press any key to close", desc_style)),

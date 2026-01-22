@@ -57,6 +57,12 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         spans.push(Span::styled(" (Esc to clear)", app.theme.muted));
     }
 
+    // Show hide completed indicator
+    if app.filter.hide_completed {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled("[Hiding completed]", app.theme.warning));
+    }
+
     let header = Line::from(spans);
     let paragraph = Paragraph::new(header);
     frame.render_widget(paragraph, area);

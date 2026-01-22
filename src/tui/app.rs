@@ -75,6 +75,8 @@ pub struct FilterState {
     pub search_term: Option<String>,
     /// Filter to show only items from this board
     pub board_filter: Option<String>,
+    /// Hide completed tasks
+    pub hide_completed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -176,6 +178,18 @@ impl App {
         };
     }
 
+    /// Check if an item should be shown based on current filters
+    fn should_show_item(&self, item: &StorageItem) -> bool {
+        if self.filter.hide_completed {
+            if let Some(task) = item.as_task() {
+                if task.is_complete {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     /// Update the flat display order of items
     pub fn update_display_order(&mut self) {
         self.display_order.clear();
@@ -192,7 +206,7 @@ impl App {
                 // Order by board, then by ID within each board
                 for board in &boards_to_show {
                     let mut board_items: Vec<_> = self.items.values()
-                        .filter(|item| item.boards().contains(board))
+                        .filter(|item| item.boards().contains(board) && self.should_show_item(item))
                         .collect();
                     board_items.sort_by_key(|item| item.id());
                     for item in board_items {
@@ -204,7 +218,9 @@ impl App {
             }
             ViewMode::Timeline | ViewMode::Archive => {
                 // Order by date (newest first), then by ID
-                let mut items: Vec<_> = self.items.values().collect();
+                let mut items: Vec<_> = self.items.values()
+                    .filter(|item| self.should_show_item(item))
+                    .collect();
                 items.sort_by(|a, b| {
                     b.timestamp().cmp(&a.timestamp())
                         .then_with(|| a.id().cmp(&b.id()))
@@ -213,6 +229,16 @@ impl App {
                     self.display_order.push(item.id());
                 }
             }
+        }
+    }
+
+    /// Toggle hide completed tasks
+    pub fn toggle_hide_completed(&mut self) {
+        self.filter.hide_completed = !self.filter.hide_completed;
+        self.update_display_order();
+        // Clamp selection
+        if !self.display_order.is_empty() && self.selected_index >= self.display_order.len() {
+            self.selected_index = self.display_order.len().saturating_sub(1);
         }
     }
 
