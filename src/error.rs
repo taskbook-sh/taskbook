@@ -22,6 +22,9 @@ pub enum TaskbookError {
 
     #[error("No items to copy")]
     NoItemsToCopy,
+
+    #[error("TUI error: {0}")]
+    Tui(String),
 }
 
 pub type Result<T> = std::result::Result<T, TaskbookError>;
