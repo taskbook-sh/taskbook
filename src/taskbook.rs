@@ -315,6 +315,298 @@ impl Taskbook {
         self.save(&data)
     }
 
+    // Public API methods for TUI access
+
+    /// Get all items without rendering (for TUI)
+    pub fn get_all_items(&self) -> Result<HashMap<String, StorageItem>> {
+        self.get_data()
+    }
+
+    /// Get all archived items without rendering (for TUI)
+    pub fn get_all_archive_items(&self) -> Result<HashMap<String, StorageItem>> {
+        self.get_archive()
+    }
+
+    /// Get all boards (for TUI)
+    pub fn get_all_boards(&self) -> Result<Vec<String>> {
+        let data = self.get_data()?;
+        Ok(self.get_boards(&data))
+    }
+
+    // Silent methods for TUI (no render output)
+
+    /// Create a task without CLI output (for TUI)
+    pub fn create_task_silent(&self, desc: &[String]) -> Result<u64> {
+        let (boards, description, id, priority) = self.get_options(desc)?;
+
+        if description.is_empty() {
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        let task = Task::new(id, description, boards, priority);
+        let mut data = self.get_data()?;
+        data.insert(id.to_string(), StorageItem::Task(task));
+        self.save(&data)?;
+        Ok(id)
+    }
+
+    /// Create a note without CLI output (for TUI)
+    pub fn create_note_silent(&self, desc: &[String]) -> Result<u64> {
+        let (boards, description, id, _) = self.get_options(desc)?;
+
+        if description.is_empty() {
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        let note = Note::new(id, description, boards);
+        let mut data = self.get_data()?;
+        data.insert(id.to_string(), StorageItem::Note(note));
+        self.save(&data)?;
+        Ok(id)
+    }
+
+    /// Check tasks without CLI output (for TUI)
+    pub fn check_tasks_silent(&self, ids: &[u64]) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        for id in ids {
+            if !existing_ids.contains(id) {
+                return Err(TaskbookError::InvalidId(*id));
+            }
+        }
+
+        for id in ids {
+            if let Some(item) = data.get_mut(&id.to_string()) {
+                if let Some(task) = item.as_task_mut() {
+                    task.in_progress = false;
+                    task.is_complete = !task.is_complete;
+                }
+            }
+        }
+
+        self.save(&data)
+    }
+
+    /// Begin tasks without CLI output (for TUI)
+    pub fn begin_tasks_silent(&self, ids: &[u64]) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        for id in ids {
+            if !existing_ids.contains(id) {
+                return Err(TaskbookError::InvalidId(*id));
+            }
+        }
+
+        for id in ids {
+            if let Some(item) = data.get_mut(&id.to_string()) {
+                if let Some(task) = item.as_task_mut() {
+                    task.is_complete = false;
+                    task.in_progress = !task.in_progress;
+                }
+            }
+        }
+
+        self.save(&data)
+    }
+
+    /// Star items without CLI output (for TUI)
+    pub fn star_items_silent(&self, ids: &[u64]) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        for id in ids {
+            if !existing_ids.contains(id) {
+                return Err(TaskbookError::InvalidId(*id));
+            }
+        }
+
+        for id in ids {
+            if let Some(item) = data.get_mut(&id.to_string()) {
+                let new_starred = !item.is_starred();
+                item.set_starred(new_starred);
+            }
+        }
+
+        self.save(&data)
+    }
+
+    /// Delete items without CLI output (for TUI)
+    pub fn delete_items_silent(&self, ids: &[u64]) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        for id in ids {
+            if !existing_ids.contains(id) {
+                return Err(TaskbookError::InvalidId(*id));
+            }
+        }
+
+        for id in ids {
+            if let Some(item) = data.remove(&id.to_string()) {
+                self.save_item_to_archive(item)?;
+            }
+        }
+
+        self.save(&data)
+    }
+
+    /// Restore items without CLI output (for TUI)
+    pub fn restore_items_silent(&self, ids: &[u64]) -> Result<()> {
+        let mut archive = self.get_archive()?;
+        let archive_ids = self.get_ids(&archive);
+
+        for id in ids {
+            if !archive_ids.contains(id) {
+                return Err(TaskbookError::InvalidId(*id));
+            }
+        }
+
+        for id in ids {
+            if let Some(item) = archive.remove(&id.to_string()) {
+                self.save_item_to_storage(item)?;
+            }
+        }
+
+        self.save_archive(&archive)
+    }
+
+    /// Edit description without CLI output (for TUI)
+    pub fn edit_description_silent(&self, id: u64, new_desc: &str) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        if !existing_ids.contains(&id) {
+            return Err(TaskbookError::InvalidId(id));
+        }
+
+        if let Some(item) = data.get_mut(&id.to_string()) {
+            item.set_description(new_desc.to_string());
+        }
+
+        self.save(&data)
+    }
+
+    /// Move to board without CLI output (for TUI)
+    pub fn move_boards_silent(&self, id: u64, boards: Vec<String>) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        if !existing_ids.contains(&id) {
+            return Err(TaskbookError::InvalidId(id));
+        }
+
+        if let Some(item) = data.get_mut(&id.to_string()) {
+            item.set_boards(boards);
+        }
+
+        self.save(&data)
+    }
+
+    /// Update priority without CLI output (for TUI)
+    pub fn update_priority_silent(&self, id: u64, priority: u8) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        if !existing_ids.contains(&id) {
+            return Err(TaskbookError::InvalidId(id));
+        }
+
+        if let Some(item) = data.get_mut(&id.to_string()) {
+            if let Some(task) = item.as_task_mut() {
+                task.priority = priority;
+            }
+        }
+
+        self.save(&data)
+    }
+
+    /// Clear completed without CLI output (for TUI)
+    pub fn clear_silent(&self) -> Result<usize> {
+        let data = self.get_data()?;
+        let mut ids_to_delete: Vec<u64> = Vec::new();
+
+        for (id, item) in &data {
+            if let Some(task) = item.as_task() {
+                if task.is_complete {
+                    if let Ok(id) = id.parse::<u64>() {
+                        ids_to_delete.push(id);
+                    }
+                }
+            }
+        }
+
+        if ids_to_delete.is_empty() {
+            return Ok(0);
+        }
+
+        let count = ids_to_delete.len();
+        let mut data = self.get_data()?;
+        for id in &ids_to_delete {
+            if let Some(item) = data.remove(&id.to_string()) {
+                self.save_item_to_archive(item)?;
+            }
+        }
+        self.save(&data)?;
+        Ok(count)
+    }
+
+    /// Copy to clipboard without CLI output (for TUI)
+    pub fn copy_to_clipboard_silent(&self, ids: &[u64]) -> Result<()> {
+        let data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+
+        for id in ids {
+            if !existing_ids.contains(id) {
+                return Err(TaskbookError::InvalidId(*id));
+            }
+        }
+
+        let mut descriptions = Vec::new();
+        for id in ids {
+            if let Some(item) = data.get(&id.to_string()) {
+                descriptions.push(item.description().to_string());
+            }
+        }
+
+        if descriptions.is_empty() {
+            return Err(TaskbookError::NoItemsToCopy);
+        }
+
+        let mut clipboard = Clipboard::new()
+            .map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
+        clipboard
+            .set_text(descriptions.join("\n"))
+            .map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Rename a board across all items (for TUI)
+    pub fn rename_board_silent(&self, old_name: &str, new_name: &str) -> Result<usize> {
+        let mut data = self.get_data()?;
+        let mut count = 0;
+
+        for item in data.values_mut() {
+            let boards = item.boards().to_vec();
+            if boards.contains(&old_name.to_string()) {
+                let new_boards: Vec<String> = boards
+                    .iter()
+                    .map(|b| if b == old_name { new_name.to_string() } else { b.clone() })
+                    .collect();
+                item.set_boards(new_boards);
+                count += 1;
+            }
+        }
+
+        if count > 0 {
+            self.save(&data)?;
+        }
+
+        Ok(count)
+    }
+
     // Public API methods
 
     pub fn create_note(&self, desc: &[String]) -> Result<()> {

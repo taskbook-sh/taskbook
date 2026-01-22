@@ -11,6 +11,7 @@ mod models;
 mod render;
 mod storage;
 mod taskbook;
+mod tui;
 
 const HELP_TEXT: &str = r#"
   Usage
@@ -139,34 +140,68 @@ struct Cli {
     /// Define a custom taskbook directory
     #[arg(long = "taskbook-dir", value_name = "PATH")]
     taskbook_dir: Option<PathBuf>,
+
+    /// Run in CLI mode (non-interactive)
+    #[arg(long)]
+    cli: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    let result = commands::run(
-        cli.input,
-        cli.archive,
-        cli.task,
-        cli.restore,
-        cli.note,
-        cli.delete,
-        cli.check,
-        cli.begin,
-        cli.star,
-        cli.priority,
-        cli.copy,
-        cli.timeline,
-        cli.find,
-        cli.list,
-        cli.edit,
-        cli.r#move,
-        cli.clear,
-        cli.taskbook_dir,
-    );
+    // Determine if we should run TUI or CLI mode
+    let has_action_flags = cli.archive
+        || cli.task
+        || cli.note
+        || cli.check
+        || cli.begin
+        || cli.star
+        || cli.delete
+        || cli.restore
+        || cli.edit
+        || cli.r#move
+        || cli.priority
+        || cli.copy
+        || cli.find
+        || cli.list
+        || cli.clear
+        || cli.timeline;
 
-    if let Err(e) = result {
-        eprintln!("{}", e);
-        process::exit(1);
+    // Run TUI if: no action flags, no CLI flag, and no input
+    let run_tui = !cli.cli && !has_action_flags && cli.input.is_empty();
+
+    if run_tui {
+        // Run interactive TUI
+        if let Err(e) = tui::run(cli.taskbook_dir.as_deref()) {
+            eprintln!("TUI error: {}", e);
+            process::exit(1);
+        }
+    } else {
+        // Run CLI mode
+        let result = commands::run(
+            cli.input,
+            cli.archive,
+            cli.task,
+            cli.restore,
+            cli.note,
+            cli.delete,
+            cli.check,
+            cli.begin,
+            cli.star,
+            cli.priority,
+            cli.copy,
+            cli.timeline,
+            cli.find,
+            cli.list,
+            cli.edit,
+            cli.r#move,
+            cli.clear,
+            cli.taskbook_dir,
+        );
+
+        if let Err(e) = result {
+            eprintln!("{}", e);
+            process::exit(1);
+        }
     }
 }
