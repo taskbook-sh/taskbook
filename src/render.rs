@@ -366,107 +366,51 @@ impl Render {
         eprintln!("\n {} Priority can only be 1, 2 or 3", self.error("✖"));
     }
 
-    pub fn mark_complete(&self, ids: &[u64]) {
+    /// Format IDs as comma-separated string
+    fn format_ids(&self, ids: &[u64]) -> String {
+        ids.iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Generic mark message for toggled states
+    fn print_mark_message(&self, ids: &[u64], action: &str, singular: &str, plural: &str) {
         if ids.is_empty() {
             return;
         }
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "tasks" } else { "task" };
+        let word = if ids.len() > 1 { plural } else { singular };
         println!(
-            "\n {} Checked {}: {}",
+            "\n {} {} {}: {}",
             self.success("✔"),
+            action,
             word,
-            self.muted(&ids_str)
+            self.muted(&self.format_ids(ids))
         );
+    }
+
+    pub fn mark_complete(&self, ids: &[u64]) {
+        self.print_mark_message(ids, "Checked", "task", "tasks");
     }
 
     pub fn mark_incomplete(&self, ids: &[u64]) {
-        if ids.is_empty() {
-            return;
-        }
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "tasks" } else { "task" };
-        println!(
-            "\n {} Unchecked {}: {}",
-            self.success("✔"),
-            word,
-            self.muted(&ids_str)
-        );
+        self.print_mark_message(ids, "Unchecked", "task", "tasks");
     }
 
     pub fn mark_started(&self, ids: &[u64]) {
-        if ids.is_empty() {
-            return;
-        }
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "tasks" } else { "task" };
-        println!(
-            "\n {} Started {}: {}",
-            self.success("✔"),
-            word,
-            self.muted(&ids_str)
-        );
+        self.print_mark_message(ids, "Started", "task", "tasks");
     }
 
     pub fn mark_paused(&self, ids: &[u64]) {
-        if ids.is_empty() {
-            return;
-        }
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "tasks" } else { "task" };
-        println!("\n {} Paused {}: {}", self.success("✔"), word, self.muted(&ids_str));
+        self.print_mark_message(ids, "Paused", "task", "tasks");
     }
 
     pub fn mark_starred(&self, ids: &[u64]) {
-        if ids.is_empty() {
-            return;
-        }
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "items" } else { "item" };
-        println!(
-            "\n {} Starred {}: {}",
-            self.success("✔"),
-            word,
-            self.muted(&ids_str)
-        );
+        self.print_mark_message(ids, "Starred", "item", "items");
     }
 
     pub fn mark_unstarred(&self, ids: &[u64]) {
-        if ids.is_empty() {
-            return;
-        }
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "items" } else { "item" };
-        println!(
-            "\n {} Unstarred {}: {}",
-            self.success("✔"),
-            word,
-            self.muted(&ids_str)
-        );
+        self.print_mark_message(ids, "Unstarred", "item", "items");
     }
 
     pub fn missing_boards(&self) {
@@ -500,18 +444,7 @@ impl Render {
     }
 
     pub fn success_delete(&self, ids: &[u64]) {
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "items" } else { "item" };
-        println!(
-            "\n {} Deleted {}: {}",
-            self.success("✔"),
-            word,
-            self.muted(&ids_str)
-        );
+        self.print_mark_message(ids, "Deleted", "item", "items");
     }
 
     pub fn success_move(&self, id: u64, boards: &[String]) {
@@ -539,52 +472,21 @@ impl Render {
     }
 
     pub fn success_restore(&self, ids: &[u64]) {
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 { "items" } else { "item" };
-        println!(
-            "\n {} Restored {}: {}",
-            self.success("✔"),
-            word,
-            self.muted(&ids_str)
-        );
+        self.print_mark_message(ids, "Restored", "item", "items");
     }
 
     pub fn success_copy_to_clipboard(&self, ids: &[u64]) {
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let word = if ids.len() > 1 {
-            "descriptions of items"
-        } else {
-            "description of item"
-        };
-        println!(
-            "\n {} Copied the {}: {}",
-            self.success("✔"),
-            word,
-            self.muted(&ids_str)
-        );
+        self.print_mark_message(ids, "Copied the description of", "item", "items");
     }
 
     pub fn success_clear(&self, ids: &[u64]) {
         if ids.is_empty() {
             return;
         }
-        let ids_str = ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
         println!(
             "\n {} Deleted all checked items: {}",
             self.success("✔"),
-            self.muted(&ids_str)
+            self.muted(&self.format_ids(ids))
         );
     }
 }

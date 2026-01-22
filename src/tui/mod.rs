@@ -1,5 +1,6 @@
 mod app;
 mod event;
+mod input_handler;
 mod theme;
 mod ui;
 mod actions;

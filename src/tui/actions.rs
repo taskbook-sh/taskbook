@@ -1,8 +1,9 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::error::Result;
 
 use super::app::{App, PopupState, StatusKind, ViewMode};
+use super::input_handler::{handle_text_input, normalize_board_name, InputResult};
 
 /// Handle a key event
 pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
@@ -60,7 +61,6 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         // Create task - skip board picker if already filtering
         KeyCode::Char('t') if app.view != ViewMode::Archive => {
             if let Some(ref board) = app.filter.board_filter {
-                // Board already selected, go straight to description
                 app.popup = Some(PopupState::CreateTaskWithBoard {
                     board: board.clone(),
                     input: String::new(),
@@ -73,7 +73,6 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         // Create note - skip board picker if already filtering
         KeyCode::Char('n') if app.view != ViewMode::Archive => {
             if let Some(ref board) = app.filter.board_filter {
-                // Board already selected, go straight to description
                 app.popup = Some(PopupState::CreateNoteWithBoard {
                     board: board.clone(),
                     input: String::new(),
@@ -90,7 +89,7 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
                 cursor: 0,
             });
         }
-        // Rename board (uses the board of the selected item, or filtered board)
+        // Rename board
         KeyCode::Char('R') if app.view == ViewMode::Board => {
             let board = app.filter.board_filter.clone()
                 .or_else(|| app.get_board_for_selected());
@@ -123,10 +122,11 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
             if let Some(item) = app.selected_item() {
                 let id = item.id();
                 let desc = item.description().to_string();
+                let cursor = desc.chars().count();
                 app.popup = Some(PopupState::EditItem {
                     id,
-                    input: desc.clone(),
-                    cursor: desc.len(),
+                    input: desc,
+                    cursor,
                 });
             }
         }
@@ -180,132 +180,70 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
 fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<()> {
     match popup {
         PopupState::Help => {
-            // Any key closes help
             app.popup = None;
         }
-        PopupState::EditItem { id, mut input, mut cursor } => {
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Enter => {
+        PopupState::EditItem { id, input, cursor } => {
+            match handle_text_input(key, &input, cursor) {
+                InputResult::Cancel => app.popup = None,
+                InputResult::Submit => {
                     if !input.trim().is_empty() {
                         edit_description(app, id, &input)?;
                     }
                     app.popup = None;
                 }
-                KeyCode::Backspace => {
-                    if cursor > 0 {
-                        input.remove(cursor - 1);
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::EditItem { id, input, cursor });
+                InputResult::Changed { input: new_input, cursor: new_cursor } => {
+                    app.popup = Some(PopupState::EditItem {
+                        id,
+                        input: new_input,
+                        cursor: new_cursor,
+                    });
                 }
-                KeyCode::Left => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::EditItem { id, input, cursor });
-                }
-                KeyCode::Right => {
-                    if cursor < input.len() {
-                        cursor += 1;
-                    }
-                    app.popup = Some(PopupState::EditItem { id, input, cursor });
-                }
-                KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = 0;
-                    app.popup = Some(PopupState::EditItem { id, input, cursor });
-                }
-                KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = input.len();
-                    app.popup = Some(PopupState::EditItem { id, input, cursor });
-                }
-                KeyCode::Char(c) => {
-                    input.insert(cursor, c);
-                    cursor += 1;
-                    app.popup = Some(PopupState::EditItem { id, input, cursor });
-                }
-                _ => {
+                InputResult::Ignored => {
                     app.popup = Some(PopupState::EditItem { id, input, cursor });
                 }
             }
         }
-        PopupState::Search { mut input, mut cursor } => {
-            match key.code {
-                KeyCode::Esc => {
+        PopupState::Search { input, cursor } => {
+            match handle_text_input(key, &input, cursor) {
+                InputResult::Cancel => {
                     app.popup = None;
                     app.filter.search_term = None;
                     app.refresh_items()?;
                 }
-                KeyCode::Enter => {
+                InputResult::Submit => {
                     if !input.trim().is_empty() {
                         app.filter.search_term = Some(input);
-                        // TODO: Apply filter
                     }
                     app.popup = None;
                 }
-                KeyCode::Backspace => {
-                    if cursor > 0 {
-                        input.remove(cursor - 1);
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::Search { input, cursor });
+                InputResult::Changed { input: new_input, cursor: new_cursor } => {
+                    app.popup = Some(PopupState::Search {
+                        input: new_input,
+                        cursor: new_cursor,
+                    });
                 }
-                KeyCode::Left => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::Search { input, cursor });
-                }
-                KeyCode::Right => {
-                    if cursor < input.len() {
-                        cursor += 1;
-                    }
-                    app.popup = Some(PopupState::Search { input, cursor });
-                }
-                KeyCode::Char(c) => {
-                    input.insert(cursor, c);
-                    cursor += 1;
-                    app.popup = Some(PopupState::Search { input, cursor });
-                }
-                _ => {
+                InputResult::Ignored => {
                     app.popup = Some(PopupState::Search { input, cursor });
                 }
             }
         }
-        PopupState::MoveBoard { id, mut input, mut cursor } => {
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Enter => {
+        PopupState::MoveBoard { id, input, cursor } => {
+            match handle_text_input(key, &input, cursor) {
+                InputResult::Cancel => app.popup = None,
+                InputResult::Submit => {
                     if !input.trim().is_empty() {
                         move_to_board(app, id, &input)?;
                     }
                     app.popup = None;
                 }
-                KeyCode::Backspace => {
-                    if cursor > 0 {
-                        input.remove(cursor - 1);
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::MoveBoard { id, input, cursor });
+                InputResult::Changed { input: new_input, cursor: new_cursor } => {
+                    app.popup = Some(PopupState::MoveBoard {
+                        id,
+                        input: new_input,
+                        cursor: new_cursor,
+                    });
                 }
-                KeyCode::Left => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::MoveBoard { id, input, cursor });
-                }
-                KeyCode::Right => {
-                    if cursor < input.len() {
-                        cursor += 1;
-                    }
-                    app.popup = Some(PopupState::MoveBoard { id, input, cursor });
-                }
-                KeyCode::Char(c) => {
-                    input.insert(cursor, c);
-                    cursor += 1;
-                    app.popup = Some(PopupState::MoveBoard { id, input, cursor });
-                }
-                _ => {
+                InputResult::Ignored => {
                     app.popup = Some(PopupState::MoveBoard { id, input, cursor });
                 }
             }
@@ -349,7 +287,7 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
             }
         }
         PopupState::SelectBoardForTask { mut selected } => {
-            let max_index = app.boards.len(); // includes "New board" option
+            let max_index = app.boards.len();
             match key.code {
                 KeyCode::Esc => app.popup = None,
                 KeyCode::Char('j') | KeyCode::Down => {
@@ -359,14 +297,11 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                     app.popup = Some(PopupState::SelectBoardForTask { selected });
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
-                    if selected > 0 {
-                        selected -= 1;
-                    }
+                    selected = selected.saturating_sub(1);
                     app.popup = Some(PopupState::SelectBoardForTask { selected });
                 }
                 KeyCode::Enter => {
                     if selected < app.boards.len() {
-                        // Selected an existing board
                         let board = app.boards[selected].clone();
                         app.popup = Some(PopupState::CreateTaskWithBoard {
                             board,
@@ -374,7 +309,6 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                             cursor: 0,
                         });
                     } else {
-                        // Selected "New board"
                         app.popup = Some(PopupState::CreateBoard {
                             input: String::new(),
                             cursor: 0,
@@ -385,7 +319,7 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
             }
         }
         PopupState::SelectBoardForNote { mut selected } => {
-            let max_index = app.boards.len(); // includes "New board" option
+            let max_index = app.boards.len();
             match key.code {
                 KeyCode::Esc => app.popup = None,
                 KeyCode::Char('j') | KeyCode::Down => {
@@ -395,14 +329,11 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                     app.popup = Some(PopupState::SelectBoardForNote { selected });
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
-                    if selected > 0 {
-                        selected -= 1;
-                    }
+                    selected = selected.saturating_sub(1);
                     app.popup = Some(PopupState::SelectBoardForNote { selected });
                 }
                 KeyCode::Enter => {
                     if selected < app.boards.len() {
-                        // Selected an existing board
                         let board = app.boards[selected].clone();
                         app.popup = Some(PopupState::CreateNoteWithBoard {
                             board,
@@ -410,7 +341,6 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                             cursor: 0,
                         });
                     } else {
-                        // Selected "New board"
                         app.popup = Some(PopupState::CreateBoard {
                             input: String::new(),
                             cursor: 0,
@@ -420,20 +350,13 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                 _ => {}
             }
         }
-        PopupState::CreateBoard { mut input, mut cursor } => {
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Enter => {
+        PopupState::CreateBoard { input, cursor } => {
+            match handle_text_input(key, &input, cursor) {
+                InputResult::Cancel => app.popup = None,
+                InputResult::Submit => {
                     if !input.trim().is_empty() {
-                        // Create a placeholder note in the new board to make it exist
-                        let board_name = if input.starts_with('@') {
-                            input.clone()
-                        } else {
-                            format!("@{}", input)
-                        };
-                        // Just refresh to add the board - the board will be created when user adds an item
+                        let board_name = normalize_board_name(&input);
                         app.refresh_items()?;
-                        // Add the new board to the list temporarily
                         if !app.boards.contains(&board_name) {
                             app.boards.push(board_name.clone());
                         }
@@ -441,185 +364,76 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                     }
                     app.popup = None;
                 }
-                KeyCode::Backspace => {
-                    if cursor > 0 {
-                        let chars: Vec<char> = input.chars().collect();
-                        let new_chars: String = chars.iter().take(cursor - 1).chain(chars.iter().skip(cursor)).collect();
-                        input = new_chars;
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::CreateBoard { input, cursor });
+                InputResult::Changed { input: new_input, cursor: new_cursor } => {
+                    app.popup = Some(PopupState::CreateBoard {
+                        input: new_input,
+                        cursor: new_cursor,
+                    });
                 }
-                KeyCode::Left => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::CreateBoard { input, cursor });
-                }
-                KeyCode::Right => {
-                    if cursor < input.chars().count() {
-                        cursor += 1;
-                    }
-                    app.popup = Some(PopupState::CreateBoard { input, cursor });
-                }
-                KeyCode::Char(c) => {
-                    let chars: Vec<char> = input.chars().collect();
-                    let new_chars: String = chars.iter().take(cursor).chain(std::iter::once(&c)).chain(chars.iter().skip(cursor)).collect();
-                    input = new_chars;
-                    cursor += 1;
-                    app.popup = Some(PopupState::CreateBoard { input, cursor });
-                }
-                _ => {
+                InputResult::Ignored => {
                     app.popup = Some(PopupState::CreateBoard { input, cursor });
                 }
             }
         }
-        PopupState::CreateTaskWithBoard { board, mut input, mut cursor } => {
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Enter => {
+        PopupState::CreateTaskWithBoard { board, input, cursor } => {
+            match handle_text_input(key, &input, cursor) {
+                InputResult::Cancel => app.popup = None,
+                InputResult::Submit => {
                     if !input.trim().is_empty() {
                         create_task_in_board(app, &board, &input)?;
                     }
                     app.popup = None;
                 }
-                KeyCode::Backspace => {
-                    if cursor > 0 {
-                        let chars: Vec<char> = input.chars().collect();
-                        let new_chars: String = chars.iter().take(cursor - 1).chain(chars.iter().skip(cursor)).collect();
-                        input = new_chars;
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::CreateTaskWithBoard { board, input, cursor });
+                InputResult::Changed { input: new_input, cursor: new_cursor } => {
+                    app.popup = Some(PopupState::CreateTaskWithBoard {
+                        board,
+                        input: new_input,
+                        cursor: new_cursor,
+                    });
                 }
-                KeyCode::Left => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::CreateTaskWithBoard { board, input, cursor });
-                }
-                KeyCode::Right => {
-                    if cursor < input.chars().count() {
-                        cursor += 1;
-                    }
-                    app.popup = Some(PopupState::CreateTaskWithBoard { board, input, cursor });
-                }
-                KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = 0;
-                    app.popup = Some(PopupState::CreateTaskWithBoard { board, input, cursor });
-                }
-                KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = input.chars().count();
-                    app.popup = Some(PopupState::CreateTaskWithBoard { board, input, cursor });
-                }
-                KeyCode::Char(c) => {
-                    let chars: Vec<char> = input.chars().collect();
-                    let new_chars: String = chars.iter().take(cursor).chain(std::iter::once(&c)).chain(chars.iter().skip(cursor)).collect();
-                    input = new_chars;
-                    cursor += 1;
-                    app.popup = Some(PopupState::CreateTaskWithBoard { board, input, cursor });
-                }
-                _ => {
+                InputResult::Ignored => {
                     app.popup = Some(PopupState::CreateTaskWithBoard { board, input, cursor });
                 }
             }
         }
-        PopupState::CreateNoteWithBoard { board, mut input, mut cursor } => {
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Enter => {
+        PopupState::CreateNoteWithBoard { board, input, cursor } => {
+            match handle_text_input(key, &input, cursor) {
+                InputResult::Cancel => app.popup = None,
+                InputResult::Submit => {
                     if !input.trim().is_empty() {
                         create_note_in_board(app, &board, &input)?;
                     }
                     app.popup = None;
                 }
-                KeyCode::Backspace => {
-                    if cursor > 0 {
-                        let chars: Vec<char> = input.chars().collect();
-                        let new_chars: String = chars.iter().take(cursor - 1).chain(chars.iter().skip(cursor)).collect();
-                        input = new_chars;
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::CreateNoteWithBoard { board, input, cursor });
+                InputResult::Changed { input: new_input, cursor: new_cursor } => {
+                    app.popup = Some(PopupState::CreateNoteWithBoard {
+                        board,
+                        input: new_input,
+                        cursor: new_cursor,
+                    });
                 }
-                KeyCode::Left => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::CreateNoteWithBoard { board, input, cursor });
-                }
-                KeyCode::Right => {
-                    if cursor < input.chars().count() {
-                        cursor += 1;
-                    }
-                    app.popup = Some(PopupState::CreateNoteWithBoard { board, input, cursor });
-                }
-                KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = 0;
-                    app.popup = Some(PopupState::CreateNoteWithBoard { board, input, cursor });
-                }
-                KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = input.chars().count();
-                    app.popup = Some(PopupState::CreateNoteWithBoard { board, input, cursor });
-                }
-                KeyCode::Char(c) => {
-                    let chars: Vec<char> = input.chars().collect();
-                    let new_chars: String = chars.iter().take(cursor).chain(std::iter::once(&c)).chain(chars.iter().skip(cursor)).collect();
-                    input = new_chars;
-                    cursor += 1;
-                    app.popup = Some(PopupState::CreateNoteWithBoard { board, input, cursor });
-                }
-                _ => {
+                InputResult::Ignored => {
                     app.popup = Some(PopupState::CreateNoteWithBoard { board, input, cursor });
                 }
             }
         }
-        PopupState::RenameBoard { old_name, mut input, mut cursor } => {
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Enter => {
+        PopupState::RenameBoard { old_name, input, cursor } => {
+            match handle_text_input(key, &input, cursor) {
+                InputResult::Cancel => app.popup = None,
+                InputResult::Submit => {
                     if !input.trim().is_empty() {
                         rename_board(app, &old_name, &input)?;
                     }
                     app.popup = None;
                 }
-                KeyCode::Backspace => {
-                    if cursor > 0 {
-                        let chars: Vec<char> = input.chars().collect();
-                        let new_chars: String = chars.iter().take(cursor - 1).chain(chars.iter().skip(cursor)).collect();
-                        input = new_chars;
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::RenameBoard { old_name, input, cursor });
+                InputResult::Changed { input: new_input, cursor: new_cursor } => {
+                    app.popup = Some(PopupState::RenameBoard {
+                        old_name,
+                        input: new_input,
+                        cursor: new_cursor,
+                    });
                 }
-                KeyCode::Left => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    }
-                    app.popup = Some(PopupState::RenameBoard { old_name, input, cursor });
-                }
-                KeyCode::Right => {
-                    if cursor < input.chars().count() {
-                        cursor += 1;
-                    }
-                    app.popup = Some(PopupState::RenameBoard { old_name, input, cursor });
-                }
-                KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = 0;
-                    app.popup = Some(PopupState::RenameBoard { old_name, input, cursor });
-                }
-                KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    cursor = input.chars().count();
-                    app.popup = Some(PopupState::RenameBoard { old_name, input, cursor });
-                }
-                KeyCode::Char(c) => {
-                    let chars: Vec<char> = input.chars().collect();
-                    let new_chars: String = chars.iter().take(cursor).chain(std::iter::once(&c)).chain(chars.iter().skip(cursor)).collect();
-                    input = new_chars;
-                    cursor += 1;
-                    app.popup = Some(PopupState::RenameBoard { old_name, input, cursor });
-                }
-                _ => {
+                InputResult::Ignored => {
                     app.popup = Some(PopupState::RenameBoard { old_name, input, cursor });
                 }
             }
@@ -629,7 +443,7 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
     Ok(())
 }
 
-// Action implementations (using silent methods to avoid CLI output)
+// Action implementations
 
 fn toggle_check(app: &mut App, id: u64) -> Result<()> {
     if let Some(item) = app.items.get(&id.to_string()) {
@@ -668,11 +482,7 @@ fn edit_description(app: &mut App, id: u64, new_desc: &str) -> Result<()> {
 }
 
 fn move_to_board(app: &mut App, id: u64, board: &str) -> Result<()> {
-    let board_name = if board.starts_with('@') {
-        board.to_string()
-    } else {
-        format!("@{}", board)
-    };
+    let board_name = normalize_board_name(board);
     app.taskbook.move_boards_silent(id, vec![board_name.clone()])?;
     app.refresh_items()?;
     app.set_status(format!("Moved item {} to {}", id, board_name), StatusKind::Success);
@@ -714,7 +524,6 @@ fn clear_completed(app: &mut App) -> Result<()> {
 }
 
 fn create_task_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
-    // Prepend board to input
     let full_input = format!("{} {}", board, input);
     let parts: Vec<String> = full_input.split_whitespace().map(String::from).collect();
     app.taskbook.create_task_silent(&parts)?;
@@ -724,7 +533,6 @@ fn create_task_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
 }
 
 fn create_note_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
-    // Prepend board to input
     let full_input = format!("{} {}", board, input);
     let parts: Vec<String> = full_input.split_whitespace().map(String::from).collect();
     app.taskbook.create_note_silent(&parts)?;
@@ -734,15 +542,9 @@ fn create_note_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
 }
 
 fn rename_board(app: &mut App, old_name: &str, new_name: &str) -> Result<()> {
-    let new_board = if new_name.starts_with('@') {
-        new_name.to_string()
-    } else {
-        format!("@{}", new_name)
-    };
-
+    let new_board = normalize_board_name(new_name);
     let count = app.taskbook.rename_board_silent(old_name, &new_board)?;
 
-    // Update filter if we were filtering by the old board
     if app.filter.board_filter.as_ref() == Some(&old_name.to_string()) {
         app.filter.board_filter = Some(new_board.clone());
     }

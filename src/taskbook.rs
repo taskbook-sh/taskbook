@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use arboard::Clipboard;
@@ -50,29 +50,41 @@ impl Taskbook {
         max + 1
     }
 
-    fn remove_duplicates(&self, ids: Vec<u64>) -> Vec<u64> {
-        let mut unique: Vec<u64> = Vec::new();
-        for id in ids {
-            if !unique.contains(&id) {
-                unique.push(id);
-            }
-        }
-        unique
+    fn remove_duplicates(&self, ids: &[u64]) -> Vec<u64> {
+        let mut seen = HashSet::with_capacity(ids.len());
+        ids.iter().filter(|id| seen.insert(**id)).copied().collect()
     }
 
-    fn get_ids(&self, data: &HashMap<String, StorageItem>) -> Vec<u64> {
+    fn get_ids(&self, data: &HashMap<String, StorageItem>) -> HashSet<u64> {
         data.keys()
             .filter_map(|k| k.parse::<u64>().ok())
             .collect()
     }
 
-    fn validate_ids(&self, input_ids: &[u64], existing_ids: &[u64]) -> Result<Vec<u64>> {
+    /// Validate IDs without rendering errors (for TUI/silent methods)
+    fn validate_ids_silent(&self, input_ids: &[u64], existing_ids: &HashSet<u64>) -> Result<Vec<u64>> {
+        if input_ids.is_empty() {
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        let unique_ids = self.remove_duplicates(input_ids);
+
+        for id in &unique_ids {
+            if !existing_ids.contains(id) {
+                return Err(TaskbookError::InvalidId(*id));
+            }
+        }
+
+        Ok(unique_ids)
+    }
+
+    fn validate_ids(&self, input_ids: &[u64], existing_ids: &HashSet<u64>) -> Result<Vec<u64>> {
         if input_ids.is_empty() {
             self.render.missing_id();
             return Err(TaskbookError::InvalidId(0));
         }
 
-        let unique_ids = self.remove_duplicates(input_ids.to_vec());
+        let unique_ids = self.remove_duplicates(input_ids);
 
         for id in &unique_ids {
             if !existing_ids.contains(id) {
@@ -89,11 +101,13 @@ impl Taskbook {
     }
 
     fn get_boards(&self, data: &HashMap<String, StorageItem>) -> Vec<String> {
+        let mut seen: HashSet<&str> = HashSet::new();
+        seen.insert("My Board");
         let mut boards = vec!["My Board".to_string()];
 
         for item in data.values() {
             for board in item.boards() {
-                if !boards.contains(board) {
+                if seen.insert(board.as_str()) {
                     boards.push(board.clone());
                 }
             }
@@ -104,11 +118,12 @@ impl Taskbook {
 
     #[allow(dead_code)]
     fn get_dates(&self, data: &HashMap<String, StorageItem>) -> Vec<String> {
+        let mut seen: HashSet<String> = HashSet::new();
         let mut dates = Vec::new();
 
         for item in data.values() {
             let date = item.date().to_string();
-            if !dates.contains(&date) {
+            if seen.insert(date.clone()) {
                 dates.push(date);
             }
         }
@@ -369,14 +384,9 @@ impl Taskbook {
     pub fn check_tasks_silent(&self, ids: &[u64]) -> Result<()> {
         let mut data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
+        let validated_ids = self.validate_ids_silent(ids, &existing_ids)?;
 
-        for id in ids {
-            if !existing_ids.contains(id) {
-                return Err(TaskbookError::InvalidId(*id));
-            }
-        }
-
-        for id in ids {
+        for id in validated_ids {
             if let Some(item) = data.get_mut(&id.to_string()) {
                 if let Some(task) = item.as_task_mut() {
                     task.in_progress = false;
@@ -392,14 +402,9 @@ impl Taskbook {
     pub fn begin_tasks_silent(&self, ids: &[u64]) -> Result<()> {
         let mut data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
+        let validated_ids = self.validate_ids_silent(ids, &existing_ids)?;
 
-        for id in ids {
-            if !existing_ids.contains(id) {
-                return Err(TaskbookError::InvalidId(*id));
-            }
-        }
-
-        for id in ids {
+        for id in validated_ids {
             if let Some(item) = data.get_mut(&id.to_string()) {
                 if let Some(task) = item.as_task_mut() {
                     task.is_complete = false;
@@ -415,14 +420,9 @@ impl Taskbook {
     pub fn star_items_silent(&self, ids: &[u64]) -> Result<()> {
         let mut data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
+        let validated_ids = self.validate_ids_silent(ids, &existing_ids)?;
 
-        for id in ids {
-            if !existing_ids.contains(id) {
-                return Err(TaskbookError::InvalidId(*id));
-            }
-        }
-
-        for id in ids {
+        for id in validated_ids {
             if let Some(item) = data.get_mut(&id.to_string()) {
                 let new_starred = !item.is_starred();
                 item.set_starred(new_starred);
@@ -436,14 +436,9 @@ impl Taskbook {
     pub fn delete_items_silent(&self, ids: &[u64]) -> Result<()> {
         let mut data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
+        let validated_ids = self.validate_ids_silent(ids, &existing_ids)?;
 
-        for id in ids {
-            if !existing_ids.contains(id) {
-                return Err(TaskbookError::InvalidId(*id));
-            }
-        }
-
-        for id in ids {
+        for id in validated_ids {
             if let Some(item) = data.remove(&id.to_string()) {
                 self.save_item_to_archive(item)?;
             }
@@ -456,14 +451,9 @@ impl Taskbook {
     pub fn restore_items_silent(&self, ids: &[u64]) -> Result<()> {
         let mut archive = self.get_archive()?;
         let archive_ids = self.get_ids(&archive);
+        let validated_ids = self.validate_ids_silent(ids, &archive_ids)?;
 
-        for id in ids {
-            if !archive_ids.contains(id) {
-                return Err(TaskbookError::InvalidId(*id));
-            }
-        }
-
-        for id in ids {
+        for id in validated_ids {
             if let Some(item) = archive.remove(&id.to_string()) {
                 self.save_item_to_storage(item)?;
             }
@@ -476,10 +466,7 @@ impl Taskbook {
     pub fn edit_description_silent(&self, id: u64, new_desc: &str) -> Result<()> {
         let mut data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
-
-        if !existing_ids.contains(&id) {
-            return Err(TaskbookError::InvalidId(id));
-        }
+        self.validate_ids_silent(&[id], &existing_ids)?;
 
         if let Some(item) = data.get_mut(&id.to_string()) {
             item.set_description(new_desc.to_string());
@@ -492,10 +479,7 @@ impl Taskbook {
     pub fn move_boards_silent(&self, id: u64, boards: Vec<String>) -> Result<()> {
         let mut data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
-
-        if !existing_ids.contains(&id) {
-            return Err(TaskbookError::InvalidId(id));
-        }
+        self.validate_ids_silent(&[id], &existing_ids)?;
 
         if let Some(item) = data.get_mut(&id.to_string()) {
             item.set_boards(boards);
@@ -508,10 +492,7 @@ impl Taskbook {
     pub fn update_priority_silent(&self, id: u64, priority: u8) -> Result<()> {
         let mut data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
-
-        if !existing_ids.contains(&id) {
-            return Err(TaskbookError::InvalidId(id));
-        }
+        self.validate_ids_silent(&[id], &existing_ids)?;
 
         if let Some(item) = data.get_mut(&id.to_string()) {
             if let Some(task) = item.as_task_mut() {
@@ -556,19 +537,12 @@ impl Taskbook {
     pub fn copy_to_clipboard_silent(&self, ids: &[u64]) -> Result<()> {
         let data = self.get_data()?;
         let existing_ids = self.get_ids(&data);
+        let validated_ids = self.validate_ids_silent(ids, &existing_ids)?;
 
-        for id in ids {
-            if !existing_ids.contains(id) {
-                return Err(TaskbookError::InvalidId(*id));
-            }
-        }
-
-        let mut descriptions = Vec::new();
-        for id in ids {
-            if let Some(item) = data.get(&id.to_string()) {
-                descriptions.push(item.description().to_string());
-            }
-        }
+        let descriptions: Vec<String> = validated_ids.iter()
+            .filter_map(|id| data.get(&id.to_string()))
+            .map(|item| item.description().to_string())
+            .collect();
 
         if descriptions.is_empty() {
             return Err(TaskbookError::NoItemsToCopy);
@@ -829,30 +803,22 @@ impl Taskbook {
 
     pub fn list_by_attributes(&self, terms: &[String]) -> Result<()> {
         let data = self.get_data()?;
-        let stored_boards = self.get_boards(&data);
+        let stored_boards: HashSet<_> = self.get_boards(&data).into_iter().collect();
 
+        let mut seen_boards: HashSet<String> = HashSet::new();
         let mut boards: Vec<String> = Vec::new();
         let mut attributes: Vec<String> = Vec::new();
 
         for term in terms {
             let board_name = format!("@{}", term);
-            if stored_boards.contains(&board_name) {
+            if stored_boards.contains(&board_name) && seen_boards.insert(board_name.clone()) {
                 boards.push(board_name);
-            } else if term == "myboard" {
+            } else if term == "myboard" && seen_boards.insert("My Board".to_string()) {
                 boards.push("My Board".to_string());
-            } else {
+            } else if !stored_boards.contains(&board_name) && term != "myboard" {
                 attributes.push(term.clone());
             }
         }
-
-        // Remove duplicate boards
-        let mut unique_boards: Vec<String> = Vec::new();
-        for board in boards {
-            if !unique_boards.contains(&board) {
-                unique_boards.push(board);
-            }
-        }
-        let boards = unique_boards;
 
         let mut filtered_data = data.clone();
         self.filter_by_attributes(&attributes, &mut filtered_data);
@@ -890,13 +856,17 @@ impl Taskbook {
         let validated_ids = self.validate_ids(&[id], &existing_ids)?;
         let id = validated_ids[0];
 
+        let mut seen: HashSet<String> = HashSet::new();
         let mut boards: Vec<String> = Vec::new();
         for word in input {
             if word != target {
-                if word == "myboard" {
-                    boards.push("My Board".to_string());
+                let board = if word == "myboard" {
+                    "My Board".to_string()
                 } else {
-                    boards.push(format!("@{}", word));
+                    format!("@{}", word)
+                };
+                if seen.insert(board.clone()) {
+                    boards.push(board);
                 }
             }
         }
@@ -906,20 +876,12 @@ impl Taskbook {
             return Err(TaskbookError::InvalidId(0));
         }
 
-        // Remove duplicates
-        let mut unique_boards: Vec<String> = Vec::new();
-        for board in boards {
-            if !unique_boards.contains(&board) {
-                unique_boards.push(board);
-            }
-        }
-
         if let Some(item) = data.get_mut(&id.to_string()) {
-            item.set_boards(unique_boards.clone());
+            item.set_boards(boards.clone());
         }
 
         self.save(&data)?;
-        self.render.success_move(id, &unique_boards);
+        self.render.success_move(id, &boards);
         Ok(())
     }
 

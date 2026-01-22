@@ -36,6 +36,8 @@ pub struct App {
     pub config: Config,
     /// Flat list of item IDs in display order (for navigation)
     pub display_order: Vec<u64>,
+    /// Cached statistics (recalculated on refresh)
+    cached_stats: Stats,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +111,13 @@ impl App {
             theme,
             config,
             display_order: Vec::new(),
+            cached_stats: Stats {
+                percent: 0,
+                complete: 0,
+                in_progress: 0,
+                pending: 0,
+                notes: 0,
+            },
         };
 
         app.refresh_items()?;
@@ -120,6 +129,7 @@ impl App {
         self.items = self.taskbook.get_all_items()?;
         self.boards = self.taskbook.get_all_boards()?;
         self.update_display_order();
+        self.recalculate_stats();
 
         // Clamp selection to valid range
         if !self.display_order.is_empty() && self.selected_index >= self.display_order.len() {
@@ -127,6 +137,43 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Recalculate cached statistics
+    fn recalculate_stats(&mut self) {
+        let mut complete = 0;
+        let mut in_progress = 0;
+        let mut pending = 0;
+        let mut notes = 0;
+
+        for item in self.items.values() {
+            if let Some(task) = item.as_task() {
+                if task.is_complete {
+                    complete += 1;
+                } else if task.in_progress {
+                    in_progress += 1;
+                } else {
+                    pending += 1;
+                }
+            } else {
+                notes += 1;
+            }
+        }
+
+        let total = complete + pending + in_progress;
+        let percent = if total == 0 {
+            0
+        } else {
+            (complete * 100 / total) as u32
+        };
+
+        self.cached_stats = Stats {
+            percent,
+            complete,
+            in_progress,
+            pending,
+            notes,
+        };
     }
 
     /// Update the flat display order of items
@@ -245,41 +292,9 @@ impl App {
         }
     }
 
-    /// Get stats for the current view
-    pub fn get_stats(&self) -> Stats {
-        let mut complete = 0;
-        let mut in_progress = 0;
-        let mut pending = 0;
-        let mut notes = 0;
-
-        for item in self.items.values() {
-            if let Some(task) = item.as_task() {
-                if task.is_complete {
-                    complete += 1;
-                } else if task.in_progress {
-                    in_progress += 1;
-                } else {
-                    pending += 1;
-                }
-            } else {
-                notes += 1;
-            }
-        }
-
-        let total = complete + pending + in_progress;
-        let percent = if total == 0 {
-            0
-        } else {
-            (complete * 100 / total) as u32
-        };
-
-        Stats {
-            percent,
-            complete,
-            in_progress,
-            pending,
-            notes,
-        }
+    /// Get stats for the current view (returns cached value)
+    pub fn get_stats(&self) -> &Stats {
+        &self.cached_stats
     }
 
     /// Switch view mode
@@ -296,6 +311,7 @@ impl App {
             }
 
             self.update_display_order();
+            self.recalculate_stats();
         }
         Ok(())
     }
