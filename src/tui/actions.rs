@@ -132,10 +132,9 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         }
         KeyCode::Char('m') if app.view != ViewMode::Archive => {
             if let Some(id) = app.selected_id() {
-                app.popup = Some(PopupState::MoveBoard {
+                app.popup = Some(PopupState::SelectBoardForMove {
                     id,
-                    input: String::new(),
-                    cursor: 0,
+                    selected: 0,
                 });
             }
         }
@@ -237,25 +236,35 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                 }
             }
         }
-        PopupState::MoveBoard { id, input, cursor } => {
-            match handle_text_input(key, &input, cursor) {
-                InputResult::Cancel => app.popup = None,
-                InputResult::Submit => {
-                    if !input.trim().is_empty() {
-                        move_to_board(app, id, &input)?;
+        PopupState::SelectBoardForMove { id, mut selected } => {
+            let max_index = app.boards.len(); // includes "New board" option
+            match key.code {
+                KeyCode::Esc => app.popup = None,
+                KeyCode::Char('j') | KeyCode::Down => {
+                    if selected < max_index {
+                        selected += 1;
                     }
-                    app.popup = None;
+                    app.popup = Some(PopupState::SelectBoardForMove { id, selected });
                 }
-                InputResult::Changed { input: new_input, cursor: new_cursor } => {
-                    app.popup = Some(PopupState::MoveBoard {
-                        id,
-                        input: new_input,
-                        cursor: new_cursor,
-                    });
+                KeyCode::Char('k') | KeyCode::Up => {
+                    selected = selected.saturating_sub(1);
+                    app.popup = Some(PopupState::SelectBoardForMove { id, selected });
                 }
-                InputResult::Ignored => {
-                    app.popup = Some(PopupState::MoveBoard { id, input, cursor });
+                KeyCode::Enter => {
+                    if selected < app.boards.len() {
+                        let board = app.boards[selected].clone();
+                        move_to_board(app, id, &board)?;
+                        app.popup = None;
+                    } else {
+                        // "New board" selected - for now just open CreateBoard
+                        // TODO: Track pending action to move item after board creation
+                        app.popup = Some(PopupState::CreateBoard {
+                            input: String::new(),
+                            cursor: 0,
+                        });
+                    }
                 }
+                _ => {}
             }
         }
         PopupState::SetPriority { id } => {

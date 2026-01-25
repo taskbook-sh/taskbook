@@ -52,7 +52,7 @@ pub enum PopupState {
     Help,
     EditItem { id: u64, input: String, cursor: usize },
     Search { input: String, cursor: usize },
-    MoveBoard { id: u64, input: String, cursor: usize },
+    SelectBoardForMove { id: u64, selected: usize },
     SetPriority { id: u64 },
     ConfirmDelete { ids: Vec<u64> },
     ConfirmClear,
