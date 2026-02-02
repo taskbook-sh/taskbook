@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::item::Item;
+use crate::board;
 
 /// A task item with completion status and priority
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +31,7 @@ pub struct Task {
 
     pub priority: u8,
 
+    #[serde(deserialize_with = "board::deserialize_boards")]
     pub boards: Vec<String>,
 }
 

@@ -3,6 +3,7 @@ use ratatui::{
     text::{Line, Span},
 };
 
+use crate::board;
 use crate::models::StorageItem;
 use crate::tui::app::App;
 
@@ -44,12 +45,6 @@ pub fn render_item_line(
         spans.push(Span::raw("   "));
     }
 
-    // ID
-    spans.push(Span::styled(
-        format!("{:3}. ", item.id()),
-        app.theme.item_id,
-    ));
-
     // Icon
     let (icon, icon_style) = if let Some(task) = item.as_task() {
         if task.is_complete {
@@ -83,10 +78,14 @@ pub fn render_item_line(
 
     // Boards (for timeline view)
     if options.show_boards {
-        let boards = item.boards().join(" ");
-        if !boards.is_empty() {
+        let boards: Vec<String> = item.boards().iter()
+            .filter(|b| !board::board_eq(b, board::DEFAULT_BOARD))
+            .map(|b| board::display_name(b))
+            .collect();
+        let boards_str = boards.join(" ");
+        if !boards_str.is_empty() {
             spans.push(Span::raw(" "));
-            spans.push(Span::styled(boards, app.theme.muted));
+            spans.push(Span::styled(boards_str, app.theme.muted));
         }
     }
 
