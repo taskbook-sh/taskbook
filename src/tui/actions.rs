@@ -1,9 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
+use crate::board;
 use crate::error::Result;
 
 use super::app::{App, PopupState, StatusKind, ViewMode};
-use super::input_handler::{handle_text_input, normalize_board_name, InputResult};
+use super::input_handler::{handle_text_input, InputResult};
 
 /// Handle a key event
 pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
@@ -33,9 +34,10 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
 
         // Enter to filter by board (in board view)
         KeyCode::Enter if app.view == ViewMode::Board && app.filter.board_filter.is_none() => {
-            if let Some(board) = app.get_board_for_selected() {
-                app.set_board_filter(Some(board.clone()));
-                app.set_status(format!("Filtering by {}", board), StatusKind::Info);
+            if let Some(board_name) = app.get_board_for_selected() {
+                let display = board::display_name(&board_name);
+                app.set_board_filter(Some(board_name));
+                app.set_status(format!("Filtering by {}", display), StatusKind::Info);
             }
         }
 
@@ -132,10 +134,9 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         }
         KeyCode::Char('m') if app.view != ViewMode::Archive => {
             if let Some(id) = app.selected_id() {
-                app.popup = Some(PopupState::MoveBoard {
+                app.popup = Some(PopupState::SelectBoardForMove {
                     id,
-                    input: String::new(),
-                    cursor: 0,
+                    selected: 0,
                 });
             }
         }
@@ -237,25 +238,35 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                 }
             }
         }
-        PopupState::MoveBoard { id, input, cursor } => {
-            match handle_text_input(key, &input, cursor) {
-                InputResult::Cancel => app.popup = None,
-                InputResult::Submit => {
-                    if !input.trim().is_empty() {
-                        move_to_board(app, id, &input)?;
+        PopupState::SelectBoardForMove { id, mut selected } => {
+            let max_index = app.boards.len(); // includes "New board" option
+            match key.code {
+                KeyCode::Esc => app.popup = None,
+                KeyCode::Char('j') | KeyCode::Down => {
+                    if selected < max_index {
+                        selected += 1;
                     }
-                    app.popup = None;
+                    app.popup = Some(PopupState::SelectBoardForMove { id, selected });
                 }
-                InputResult::Changed { input: new_input, cursor: new_cursor } => {
-                    app.popup = Some(PopupState::MoveBoard {
-                        id,
-                        input: new_input,
-                        cursor: new_cursor,
-                    });
+                KeyCode::Char('k') | KeyCode::Up => {
+                    selected = selected.saturating_sub(1);
+                    app.popup = Some(PopupState::SelectBoardForMove { id, selected });
                 }
-                InputResult::Ignored => {
-                    app.popup = Some(PopupState::MoveBoard { id, input, cursor });
+                KeyCode::Enter => {
+                    if selected < app.boards.len() {
+                        let board = app.boards[selected].clone();
+                        move_to_board(app, id, &board)?;
+                        app.popup = None;
+                    } else {
+                        // "New board" selected - for now just open CreateBoard
+                        // TODO: Track pending action to move item after board creation
+                        app.popup = Some(PopupState::CreateBoard {
+                            input: String::new(),
+                            cursor: 0,
+                        });
+                    }
                 }
+                _ => {}
             }
         }
         PopupState::SetPriority { id } => {
@@ -365,12 +376,13 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
                 InputResult::Cancel => app.popup = None,
                 InputResult::Submit => {
                     if !input.trim().is_empty() {
-                        let board_name = normalize_board_name(&input);
+                        let board_name = board::normalize_board_name(&input);
                         app.refresh_items()?;
-                        if !app.boards.contains(&board_name) {
+                        if !app.boards.iter().any(|b| board::board_eq(b, &board_name)) {
                             app.boards.push(board_name.clone());
                         }
-                        app.set_status(format!("Board {} ready - add a task or note to it", board_name), StatusKind::Success);
+                        let display = board::display_name(&board_name);
+                        app.set_status(format!("Board {} ready - add a task or note to it", display), StatusKind::Success);
                     }
                     app.popup = None;
                 }
@@ -492,10 +504,11 @@ fn edit_description(app: &mut App, id: u64, new_desc: &str) -> Result<()> {
 }
 
 fn move_to_board(app: &mut App, id: u64, board: &str) -> Result<()> {
-    let board_name = normalize_board_name(board);
+    let board_name = board::normalize_board_name(board);
     app.taskbook.move_boards_silent(id, vec![board_name.clone()])?;
     app.refresh_items()?;
-    app.set_status(format!("Moved item {} to {}", id, board_name), StatusKind::Success);
+    let display = board::display_name(&board_name);
+    app.set_status(format!("Moved item {} to {}", id, display), StatusKind::Success);
     Ok(())
 }
 
@@ -534,32 +547,36 @@ fn clear_completed(app: &mut App) -> Result<()> {
 }
 
 fn create_task_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
-    let full_input = format!("{} {}", board, input);
-    let parts: Vec<String> = full_input.split_whitespace().map(String::from).collect();
-    app.taskbook.create_task_silent(&parts)?;
+    let board_name = board::normalize_board_name(board);
+    app.taskbook.create_task_direct(vec![board_name.clone()], input.to_string(), 1)?;
     app.refresh_items()?;
-    app.set_status(format!("Task created in {}", board), StatusKind::Success);
+    let display = board::display_name(&board_name);
+    app.set_status(format!("Task created in {}", display), StatusKind::Success);
     Ok(())
 }
 
 fn create_note_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
-    let full_input = format!("{} {}", board, input);
-    let parts: Vec<String> = full_input.split_whitespace().map(String::from).collect();
-    app.taskbook.create_note_silent(&parts)?;
+    let board_name = board::normalize_board_name(board);
+    app.taskbook.create_note_direct(vec![board_name.clone()], input.to_string())?;
     app.refresh_items()?;
-    app.set_status(format!("Note created in {}", board), StatusKind::Success);
+    let display = board::display_name(&board_name);
+    app.set_status(format!("Note created in {}", display), StatusKind::Success);
     Ok(())
 }
 
 fn rename_board(app: &mut App, old_name: &str, new_name: &str) -> Result<()> {
-    let new_board = normalize_board_name(new_name);
+    let new_board = board::normalize_board_name(new_name);
     let count = app.taskbook.rename_board_silent(old_name, &new_board)?;
 
-    if app.filter.board_filter.as_ref() == Some(&old_name.to_string()) {
-        app.filter.board_filter = Some(new_board.clone());
+    if let Some(ref filter) = app.filter.board_filter {
+        if board::board_eq(filter, old_name) {
+            app.filter.board_filter = Some(new_board.clone());
+        }
     }
 
     app.refresh_items()?;
-    app.set_status(format!("Renamed {} to {} ({} items)", old_name, new_board, count), StatusKind::Success);
+    let old_display = board::display_name(old_name);
+    let new_display = board::display_name(&new_board);
+    app.set_status(format!("Renamed {} to {} ({} items)", old_display, new_display, count), StatusKind::Success);
     Ok(())
 }

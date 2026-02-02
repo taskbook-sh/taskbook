@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use colored::{ColoredString, Colorize};
 
+use crate::board;
 use crate::config::{Config, Rgb, ThemeColors};
 use crate::models::StorageItem;
 
@@ -209,8 +210,8 @@ impl Render {
         let boards: Vec<String> = item
             .boards()
             .iter()
-            .filter(|b| *b != "My Board")
-            .cloned()
+            .filter(|b| !board::board_eq(b, board::DEFAULT_BOARD))
+            .map(|b| board::display_name(b))
             .collect();
         let star = self.get_star(item);
         let prefix = self.build_prefix(item);
@@ -240,14 +241,15 @@ impl Render {
         let mut boards: Vec<_> = data.keys().collect();
         boards.sort();
 
-        for board in boards {
-            let items = &data[board];
+        for board_key in boards {
+            let items = &data[board_key];
 
             if self.is_board_complete(items) && !self.config.display_complete_tasks {
                 continue;
             }
 
-            self.display_title(board, items);
+            let display = board::display_name(board_key);
+            self.display_title(&display, items);
 
             for item in items {
                 if item.is_task() {

@@ -126,12 +126,3 @@ pub fn handle_text_input(key: KeyEvent, input: &str, cursor: usize) -> InputResu
         _ => InputResult::Ignored,
     }
 }
-
-/// Normalize a board name by adding @ prefix if needed
-pub fn normalize_board_name(name: &str) -> String {
-    if name.starts_with('@') {
-        name.to_string()
-    } else {
-        format!("@{}", name)
-    }
-}

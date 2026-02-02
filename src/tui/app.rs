@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use crate::board;
 use crate::config::Config;
 use crate::error::Result;
 use crate::models::StorageItem;
@@ -52,7 +53,7 @@ pub enum PopupState {
     Help,
     EditItem { id: u64, input: String, cursor: usize },
     Search { input: String, cursor: usize },
-    MoveBoard { id: u64, input: String, cursor: usize },
+    SelectBoardForMove { id: u64, selected: usize },
     SetPriority { id: u64 },
     ConfirmDelete { ids: Vec<u64> },
     ConfirmClear,
@@ -206,7 +207,7 @@ impl App {
                 // Order by board, then by ID within each board
                 for board in &boards_to_show {
                     let mut board_items: Vec<_> = self.items.values()
-                        .filter(|item| item.boards().contains(board) && self.should_show_item(item))
+                        .filter(|item| item.boards().iter().any(|b| board::board_eq(b, board)) && self.should_show_item(item))
                         .collect();
                     board_items.sort_by_key(|item| item.id());
                     for item in board_items {

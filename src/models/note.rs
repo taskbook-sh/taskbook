@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::item::Item;
+use crate::board;
 
 /// A note item (non-task)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +23,7 @@ pub struct Note {
     #[serde(rename = "isStarred")]
     pub is_starred: bool,
 
+    #[serde(deserialize_with = "board::deserialize_boards")]
     pub boards: Vec<String>,
 }
 

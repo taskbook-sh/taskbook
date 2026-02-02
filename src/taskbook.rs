@@ -3,6 +3,7 @@ use std::path::Path;
 
 use arboard::Clipboard;
 
+use crate::board::{self, DEFAULT_BOARD};
 use crate::config::Config;
 use crate::directory::resolve_taskbook_directory;
 use crate::error::{Result, TaskbookError};
@@ -96,19 +97,13 @@ impl Taskbook {
         Ok(unique_ids)
     }
 
-    fn is_priority_opt(x: &str) -> bool {
-        matches!(x, "p:1" | "p:2" | "p:3")
-    }
-
     fn get_boards(&self, data: &HashMap<String, StorageItem>) -> Vec<String> {
-        let mut seen: HashSet<&str> = HashSet::new();
-        seen.insert("My Board");
-        let mut boards = vec!["My Board".to_string()];
+        let mut boards = vec![DEFAULT_BOARD.to_string()];
 
         for item in data.values() {
-            for board in item.boards() {
-                if seen.insert(board.as_str()) {
-                    boards.push(board.clone());
+            for b in item.boards() {
+                if !boards.iter().any(|existing| board::board_eq(existing, b)) {
+                    boards.push(b.clone());
                 }
             }
         }
@@ -131,15 +126,6 @@ impl Taskbook {
         dates
     }
 
-    fn get_priority(desc: &[&str]) -> u8 {
-        for word in desc {
-            if Self::is_priority_opt(word) {
-                return word.chars().last().unwrap().to_digit(10).unwrap() as u8;
-            }
-        }
-        1
-    }
-
     fn get_options(&self, input: &[String]) -> Result<(Vec<String>, String, u64, u8)> {
         if input.is_empty() {
             self.render.missing_desc();
@@ -149,27 +135,7 @@ impl Taskbook {
         let data = self.get_data()?;
         let id = self.generate_id(&data);
 
-        let input_refs: Vec<&str> = input.iter().map(|s| s.as_str()).collect();
-        let priority = Self::get_priority(&input_refs);
-
-        let mut boards = Vec::new();
-        let mut desc = Vec::new();
-
-        for word in input {
-            if !Self::is_priority_opt(word) {
-                if word.starts_with('@') && word.len() > 1 {
-                    boards.push(word.clone());
-                } else {
-                    desc.push(word.clone());
-                }
-            }
-        }
-
-        let description = desc.join(" ");
-
-        if boards.is_empty() {
-            boards.push("My Board".to_string());
-        }
+        let (boards, description, priority) = board::parse_cli_input(input);
 
         Ok((boards, description, id, priority))
     }
@@ -279,7 +245,7 @@ impl Taskbook {
 
         for item in data.values() {
             for board in boards {
-                if item.boards().contains(board) {
+                if item.boards().iter().any(|b| board::board_eq(b, board)) {
                     grouped.entry(board.clone()).or_default().push(item);
                 }
             }
@@ -350,31 +316,29 @@ impl Taskbook {
 
     // Silent methods for TUI (no render output)
 
-    /// Create a task without CLI output (for TUI)
-    pub fn create_task_silent(&self, desc: &[String]) -> Result<u64> {
-        let (boards, description, id, priority) = self.get_options(desc)?;
-
+    /// Create a task with explicit board and description (for TUI)
+    pub fn create_task_direct(&self, boards: Vec<String>, description: String, priority: u8) -> Result<u64> {
         if description.is_empty() {
             return Err(TaskbookError::InvalidId(0));
         }
 
-        let task = Task::new(id, description, boards, priority);
         let mut data = self.get_data()?;
+        let id = self.generate_id(&data);
+        let task = Task::new(id, description, boards, priority);
         data.insert(id.to_string(), StorageItem::Task(task));
         self.save(&data)?;
         Ok(id)
     }
 
-    /// Create a note without CLI output (for TUI)
-    pub fn create_note_silent(&self, desc: &[String]) -> Result<u64> {
-        let (boards, description, id, _) = self.get_options(desc)?;
-
+    /// Create a note with explicit board and description (for TUI)
+    pub fn create_note_direct(&self, boards: Vec<String>, description: String) -> Result<u64> {
         if description.is_empty() {
             return Err(TaskbookError::InvalidId(0));
         }
 
-        let note = Note::new(id, description, boards);
         let mut data = self.get_data()?;
+        let id = self.generate_id(&data);
+        let note = Note::new(id, description, boards);
         data.insert(id.to_string(), StorageItem::Note(note));
         self.save(&data)?;
         Ok(id)
@@ -481,8 +445,9 @@ impl Taskbook {
         let existing_ids = self.get_ids(&data);
         self.validate_ids_silent(&[id], &existing_ids)?;
 
+        let normalized: Vec<String> = boards.into_iter().map(|b| board::normalize_board_name(&b)).collect();
         if let Some(item) = data.get_mut(&id.to_string()) {
-            item.set_boards(boards);
+            item.set_boards(normalized);
         }
 
         self.save(&data)
@@ -561,13 +526,14 @@ impl Taskbook {
     pub fn rename_board_silent(&self, old_name: &str, new_name: &str) -> Result<usize> {
         let mut data = self.get_data()?;
         let mut count = 0;
+        let normalized_new = board::normalize_board_name(new_name);
 
         for item in data.values_mut() {
             let boards = item.boards().to_vec();
-            if boards.contains(&old_name.to_string()) {
+            if boards.iter().any(|b| board::board_eq(b, old_name)) {
                 let new_boards: Vec<String> = boards
                     .iter()
-                    .map(|b| if b == old_name { new_name.to_string() } else { b.clone() })
+                    .map(|b| if board::board_eq(b, old_name) { normalized_new.clone() } else { b.clone() })
                     .collect();
                 item.set_boards(new_boards);
                 count += 1;
@@ -803,19 +769,18 @@ impl Taskbook {
 
     pub fn list_by_attributes(&self, terms: &[String]) -> Result<()> {
         let data = self.get_data()?;
-        let stored_boards: HashSet<_> = self.get_boards(&data).into_iter().collect();
+        let stored_boards = self.get_boards(&data);
 
-        let mut seen_boards: HashSet<String> = HashSet::new();
         let mut boards: Vec<String> = Vec::new();
         let mut attributes: Vec<String> = Vec::new();
 
         for term in terms {
-            let board_name = format!("@{}", term);
-            if stored_boards.contains(&board_name) && seen_boards.insert(board_name.clone()) {
-                boards.push(board_name);
-            } else if term == "myboard" && seen_boards.insert("My Board".to_string()) {
-                boards.push("My Board".to_string());
-            } else if !stored_boards.contains(&board_name) && term != "myboard" {
+            let normalized = board::normalize_board_name(term);
+            if stored_boards.iter().any(|b| board::board_eq(b, &normalized)) {
+                if !boards.iter().any(|b| board::board_eq(b, &normalized)) {
+                    boards.push(normalized);
+                }
+            } else {
                 attributes.push(term.clone());
             }
         }
@@ -856,17 +821,12 @@ impl Taskbook {
         let validated_ids = self.validate_ids(&[id], &existing_ids)?;
         let id = validated_ids[0];
 
-        let mut seen: HashSet<String> = HashSet::new();
         let mut boards: Vec<String> = Vec::new();
         for word in input {
             if word != target {
-                let board = if word == "myboard" {
-                    "My Board".to_string()
-                } else {
-                    format!("@{}", word)
-                };
-                if seen.insert(board.clone()) {
-                    boards.push(board);
+                let normalized = board::normalize_board_name(word);
+                if !boards.iter().any(|b| board::board_eq(b, &normalized)) {
+                    boards.push(normalized);
                 }
             }
         }
@@ -881,7 +841,8 @@ impl Taskbook {
         }
 
         self.save(&data)?;
-        self.render.success_move(id, &boards);
+        let display_boards: Vec<String> = boards.iter().map(|b| board::display_name(b)).collect();
+        self.render.success_move(id, &display_boards);
         Ok(())
     }
 

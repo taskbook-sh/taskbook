@@ -5,6 +5,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::board;
 use crate::tui::app::App;
 use crate::tui::ui::centered_rect;
 
@@ -33,7 +34,7 @@ pub fn render_board_picker(
     lines.push(Line::from(""));
 
     // List existing boards
-    for (i, board) in app.boards.iter().enumerate() {
+    for (i, b) in app.boards.iter().enumerate() {
         let is_selected = i == selected;
         let prefix = if is_selected { " > " } else { "   " };
         let style = if is_selected {
@@ -41,9 +42,10 @@ pub fn render_board_picker(
         } else {
             Style::default()
         };
+        let display = board::display_name(b);
         lines.push(Line::from(vec![
             Span::styled(prefix, style),
-            Span::styled(board.clone(), style),
+            Span::styled(display, style),
         ]));
     }
 

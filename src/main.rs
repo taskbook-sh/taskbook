@@ -3,6 +3,7 @@ use std::process;
 
 use clap::Parser;
 
+mod board;
 mod commands;
 mod config;
 mod directory;

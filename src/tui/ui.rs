@@ -104,8 +104,8 @@ fn render_popup(frame: &mut Frame, app: &App, popup: &PopupState) {
         PopupState::Search { input, cursor } => {
             render_input_dialog(frame, app, "Search", "Enter search term", input, *cursor);
         }
-        PopupState::MoveBoard { input, cursor, .. } => {
-            render_input_dialog(frame, app, "Move to Board", "Enter board name (without @)", input, *cursor);
+        PopupState::SelectBoardForMove { selected, .. } => {
+            render_board_picker(frame, app, "Move to Board", *selected, true);
         }
         PopupState::SetPriority { id } => {
             render_priority_popup(frame, app, *id);

@@ -5,6 +5,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::board;
 use crate::models::StorageItem;
 use crate::tui::app::App;
 
@@ -17,7 +18,7 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
 
     // Determine which boards to show (respect filter)
     let boards_to_show: Vec<&String> = if let Some(ref filter_board) = app.filter.board_filter {
-        app.boards.iter().filter(|b| *b == filter_board).collect()
+        app.boards.iter().filter(|b| board::board_eq(b, filter_board)).collect()
     } else {
         app.boards.iter().collect()
     };
@@ -25,7 +26,7 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
     // Group items by board
     for board in boards_to_show {
         let board_items: Vec<&StorageItem> = app.items.values()
-            .filter(|item| item.boards().contains(board))
+            .filter(|item| item.boards().iter().any(|b| board::board_eq(b, board)))
             .collect();
 
         if board_items.is_empty() {
@@ -65,9 +66,10 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
         } else {
             String::new()
         };
+        let display = board::display_name(board);
         lines.push(Line::from(vec![
             Span::raw("  "),
-            Span::styled(board.clone(), app.theme.board_name),
+            Span::styled(display, app.theme.board_name),
             Span::styled(stats_text, app.theme.muted),
         ]));
         item_line_map.push(None);
