@@ -92,7 +92,7 @@ pub fn render_timeline_view(frame: &mut Frame, app: &App, area: Rect) {
 
         // Sort items by timestamp (newest first)
         let mut sorted_items = visible_items;
-        sorted_items.sort_by(|a, b| b.timestamp().cmp(&a.timestamp()));
+        sorted_items.sort_by_key(|item| std::cmp::Reverse(item.timestamp()));
 
         for item in sorted_items {
             let is_selected = app.selected_id() == Some(item.id());

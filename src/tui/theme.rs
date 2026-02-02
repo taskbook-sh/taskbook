@@ -16,6 +16,7 @@ pub struct TuiTheme {
     pub border: Style,
     pub title: Style,
     pub header: Style,
+    #[allow(dead_code)]
     pub item_id: Style,
     pub completed_text: Style,
     pub board_name: Style,
