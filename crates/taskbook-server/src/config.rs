@@ -20,7 +20,7 @@ impl ServerConfig {
                 .parse()
                 .expect("TB_PORT must be a valid port number"),
             database_url: std::env::var("TB_DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://localhost/taskbook".to_string()),
+                .expect("TB_DATABASE_URL environment variable is required"),
             session_expiry_days: std::env::var("TB_SESSION_EXPIRY_DAYS")
                 .unwrap_or_else(|_| "30".to_string())
                 .parse()
