@@ -1,13 +1,13 @@
+mod actions;
 mod app;
 mod event;
 mod input_handler;
 mod theme;
 mod ui;
-mod actions;
 pub mod widgets;
 
-pub use app::App;
 use crate::error::{Result, TaskbookError};
+pub use app::App;
 
 use std::io;
 use std::path::Path;
@@ -41,7 +41,9 @@ pub fn run(taskbook_dir: Option<&Path>) -> Result<()> {
         DisableMouseCapture
     )
     .map_err(|e| TaskbookError::Tui(e.to_string()))?;
-    terminal.show_cursor().map_err(|e| TaskbookError::Tui(e.to_string()))?;
+    terminal
+        .show_cursor()
+        .map_err(|e| TaskbookError::Tui(e.to_string()))?;
 
     res
 }
@@ -50,7 +52,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> 
     let events = event::EventHandler::new(250);
 
     while app.running {
-        terminal.draw(|f| ui::render(f, app)).map_err(|e| TaskbookError::Tui(e.to_string()))?;
+        terminal
+            .draw(|f| ui::render(f, app))
+            .map_err(|e| TaskbookError::Tui(e.to_string()))?;
 
         match events.next()? {
             event::Event::Key(key) => {

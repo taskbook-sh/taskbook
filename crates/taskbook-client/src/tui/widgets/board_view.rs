@@ -5,9 +5,9 @@ use ratatui::{
     Frame,
 };
 
+use crate::tui::app::App;
 use taskbook_common::board;
 use taskbook_common::StorageItem;
-use crate::tui::app::App;
 
 use super::item_row::{render_item_line, ItemRowOptions};
 
@@ -18,14 +18,19 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
 
     // Determine which boards to show (respect filter)
     let boards_to_show: Vec<&String> = if let Some(ref filter_board) = app.filter.board_filter {
-        app.boards.iter().filter(|b| board::board_eq(b, filter_board)).collect()
+        app.boards
+            .iter()
+            .filter(|b| board::board_eq(b, filter_board))
+            .collect()
     } else {
         app.boards.iter().collect()
     };
 
     // Group items by board
     for board in boards_to_show {
-        let board_items: Vec<&StorageItem> = app.items.values()
+        let board_items: Vec<&StorageItem> = app
+            .items
+            .values()
             .filter(|item| item.boards().iter().any(|b| board::board_eq(b, board)))
             .collect();
 
@@ -35,13 +40,15 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
 
         // Count stats for this board (always count all tasks for stats)
         let total_tasks: usize = board_items.iter().filter(|i| i.is_task()).count();
-        let complete_tasks: usize = board_items.iter()
+        let complete_tasks: usize = board_items
+            .iter()
             .filter_map(|i| i.as_task())
             .filter(|t| t.is_complete)
             .count();
 
         // Filter items for display (respecting hide_completed)
-        let visible_items: Vec<&StorageItem> = board_items.into_iter()
+        let visible_items: Vec<&StorageItem> = board_items
+            .into_iter()
             .filter(|item| {
                 if app.filter.hide_completed {
                     if let Some(task) = item.as_task() {
@@ -96,7 +103,8 @@ fn render_scrollable_list(
     item_line_map: &[Option<u64>],
     selected_id: Option<u64>,
 ) {
-    let selected_line = item_line_map.iter()
+    let selected_line = item_line_map
+        .iter()
         .position(|id| *id == selected_id)
         .unwrap_or(0);
 
@@ -106,16 +114,14 @@ fn render_scrollable_list(
         0
     };
 
-    let paragraph = Paragraph::new(lines.clone())
-        .scroll((scroll_offset as u16, 0));
+    let paragraph = Paragraph::new(lines.clone()).scroll((scroll_offset as u16, 0));
     frame.render_widget(paragraph, area);
 
     if lines.len() > area.height as usize {
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(None)
             .end_symbol(None);
-        let mut scrollbar_state = ScrollbarState::new(lines.len())
-            .position(scroll_offset);
+        let mut scrollbar_state = ScrollbarState::new(lines.len()).position(scroll_offset);
         frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
     }
 }

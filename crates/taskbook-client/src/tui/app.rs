@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use taskbook_common::board;
-use taskbook_common::StorageItem;
 use crate::config::Config;
 use crate::error::Result;
 use crate::render::Stats;
 use crate::taskbook::Taskbook;
+use taskbook_common::board;
+use taskbook_common::StorageItem;
 
 use super::theme::TuiTheme;
 
@@ -51,22 +51,55 @@ pub enum ViewMode {
 #[derive(Debug, Clone)]
 pub enum PopupState {
     Help,
-    EditItem { id: u64, input: String, cursor: usize },
-    Search { input: String, cursor: usize },
-    SelectBoardForMove { id: u64, selected: usize },
-    SetPriority { id: u64 },
-    ConfirmDelete { ids: Vec<u64> },
+    EditItem {
+        id: u64,
+        input: String,
+        cursor: usize,
+    },
+    Search {
+        input: String,
+        cursor: usize,
+    },
+    SelectBoardForMove {
+        id: u64,
+        selected: usize,
+    },
+    SetPriority {
+        id: u64,
+    },
+    ConfirmDelete {
+        ids: Vec<u64>,
+    },
     ConfirmClear,
     // Board picker for task/note creation
-    SelectBoardForTask { selected: usize },
-    SelectBoardForNote { selected: usize },
+    SelectBoardForTask {
+        selected: usize,
+    },
+    SelectBoardForNote {
+        selected: usize,
+    },
     // Create new board
-    CreateBoard { input: String, cursor: usize },
+    CreateBoard {
+        input: String,
+        cursor: usize,
+    },
     // Task/note input after board selection
-    CreateTaskWithBoard { board: String, input: String, cursor: usize },
-    CreateNoteWithBoard { board: String, input: String, cursor: usize },
+    CreateTaskWithBoard {
+        board: String,
+        input: String,
+        cursor: usize,
+    },
+    CreateNoteWithBoard {
+        board: String,
+        input: String,
+        cursor: usize,
+    },
     // Rename board
-    RenameBoard { old_name: String, input: String, cursor: usize },
+    RenameBoard {
+        old_name: String,
+        input: String,
+        cursor: usize,
+    },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -198,16 +231,22 @@ impl App {
         match self.view {
             ViewMode::Board => {
                 // If filtering by board, only show that board
-                let boards_to_show: Vec<String> = if let Some(ref filter_board) = self.filter.board_filter {
-                    vec![filter_board.clone()]
-                } else {
-                    self.boards.clone()
-                };
+                let boards_to_show: Vec<String> =
+                    if let Some(ref filter_board) = self.filter.board_filter {
+                        vec![filter_board.clone()]
+                    } else {
+                        self.boards.clone()
+                    };
 
                 // Order by board, then by ID within each board
                 for board in &boards_to_show {
-                    let mut board_items: Vec<_> = self.items.values()
-                        .filter(|item| item.boards().iter().any(|b| board::board_eq(b, board)) && self.should_show_item(item))
+                    let mut board_items: Vec<_> = self
+                        .items
+                        .values()
+                        .filter(|item| {
+                            item.boards().iter().any(|b| board::board_eq(b, board))
+                                && self.should_show_item(item)
+                        })
                         .collect();
                     board_items.sort_by_key(|item| item.id());
                     for item in board_items {
@@ -219,11 +258,14 @@ impl App {
             }
             ViewMode::Timeline | ViewMode::Archive => {
                 // Order by date (newest first), then by ID
-                let mut items: Vec<_> = self.items.values()
+                let mut items: Vec<_> = self
+                    .items
+                    .values()
                     .filter(|item| self.should_show_item(item))
                     .collect();
                 items.sort_by(|a, b| {
-                    b.timestamp().cmp(&a.timestamp())
+                    b.timestamp()
+                        .cmp(&a.timestamp())
                         .then_with(|| a.id().cmp(&b.id()))
                 });
                 for item in items {

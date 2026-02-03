@@ -51,8 +51,7 @@ pub fn decrypt_item(key: &[u8; 32], encrypted: &EncryptedItem) -> Result<Storage
         .decrypt(nonce, encrypted.data.as_ref())
         .map_err(|e| CommonError::Encryption(e.to_string()))?;
 
-    let item: StorageItem =
-        serde_json::from_slice(&plaintext).map_err(CommonError::Json)?;
+    let item: StorageItem = serde_json::from_slice(&plaintext).map_err(CommonError::Json)?;
     Ok(item)
 }
 

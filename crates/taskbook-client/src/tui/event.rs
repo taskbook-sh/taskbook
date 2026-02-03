@@ -31,25 +31,23 @@ impl EventHandler {
         let tick_rate = Duration::from_millis(tick_rate);
         let (sender, receiver) = mpsc::channel();
 
-        let handler = thread::spawn(move || {
-            loop {
-                if event::poll(tick_rate).unwrap_or(false) {
-                    match event::read() {
-                        Ok(event::Event::Key(key)) => {
-                            if sender.send(Event::Key(key)).is_err() {
-                                break;
-                            }
+        let handler = thread::spawn(move || loop {
+            if event::poll(tick_rate).unwrap_or(false) {
+                match event::read() {
+                    Ok(event::Event::Key(key)) => {
+                        if sender.send(Event::Key(key)).is_err() {
+                            break;
                         }
-                        Ok(event::Event::Resize(width, height)) => {
-                            if sender.send(Event::Resize(width, height)).is_err() {
-                                break;
-                            }
-                        }
-                        _ => {}
                     }
-                } else if sender.send(Event::Tick).is_err() {
-                    break;
+                    Ok(event::Event::Resize(width, height)) => {
+                        if sender.send(Event::Resize(width, height)).is_err() {
+                            break;
+                        }
+                    }
+                    _ => {}
                 }
+            } else if sender.send(Event::Tick).is_err() {
+                break;
             }
         });
 

@@ -57,52 +57,52 @@ impl ThemeColors {
     /// Catppuccin Macchiato theme
     pub fn catppuccin_macchiato() -> Self {
         Self {
-            muted: Rgb::new(165, 173, 203),    // Subtext0
-            success: Rgb::new(166, 218, 149),  // Green
-            warning: Rgb::new(238, 212, 159),  // Yellow
-            error: Rgb::new(237, 135, 150),    // Red
-            info: Rgb::new(138, 173, 244),     // Blue
-            pending: Rgb::new(198, 160, 246),  // Mauve
-            starred: Rgb::new(238, 212, 159),  // Yellow
+            muted: Rgb::new(165, 173, 203),   // Subtext0
+            success: Rgb::new(166, 218, 149), // Green
+            warning: Rgb::new(238, 212, 159), // Yellow
+            error: Rgb::new(237, 135, 150),   // Red
+            info: Rgb::new(138, 173, 244),    // Blue
+            pending: Rgb::new(198, 160, 246), // Mauve
+            starred: Rgb::new(238, 212, 159), // Yellow
         }
     }
 
     /// Catppuccin Mocha theme
     pub fn catppuccin_mocha() -> Self {
         Self {
-            muted: Rgb::new(166, 173, 200),    // Subtext0
-            success: Rgb::new(166, 227, 161),  // Green
-            warning: Rgb::new(249, 226, 175),  // Yellow
-            error: Rgb::new(243, 139, 168),    // Red
-            info: Rgb::new(137, 180, 250),     // Blue
-            pending: Rgb::new(203, 166, 247),  // Mauve
-            starred: Rgb::new(249, 226, 175),  // Yellow
+            muted: Rgb::new(166, 173, 200),   // Subtext0
+            success: Rgb::new(166, 227, 161), // Green
+            warning: Rgb::new(249, 226, 175), // Yellow
+            error: Rgb::new(243, 139, 168),   // Red
+            info: Rgb::new(137, 180, 250),    // Blue
+            pending: Rgb::new(203, 166, 247), // Mauve
+            starred: Rgb::new(249, 226, 175), // Yellow
         }
     }
 
     /// Catppuccin Frappe theme
     pub fn catppuccin_frappe() -> Self {
         Self {
-            muted: Rgb::new(165, 173, 206),    // Subtext0
-            success: Rgb::new(166, 209, 137),  // Green
-            warning: Rgb::new(229, 200, 144),  // Yellow
-            error: Rgb::new(231, 130, 132),    // Red
-            info: Rgb::new(140, 170, 238),     // Blue
-            pending: Rgb::new(202, 158, 230),  // Mauve
-            starred: Rgb::new(229, 200, 144),  // Yellow
+            muted: Rgb::new(165, 173, 206),   // Subtext0
+            success: Rgb::new(166, 209, 137), // Green
+            warning: Rgb::new(229, 200, 144), // Yellow
+            error: Rgb::new(231, 130, 132),   // Red
+            info: Rgb::new(140, 170, 238),    // Blue
+            pending: Rgb::new(202, 158, 230), // Mauve
+            starred: Rgb::new(229, 200, 144), // Yellow
         }
     }
 
     /// Catppuccin Latte theme (light theme)
     pub fn catppuccin_latte() -> Self {
         Self {
-            muted: Rgb::new(108, 111, 133),    // Subtext0
-            success: Rgb::new(64, 160, 43),    // Green
-            warning: Rgb::new(223, 142, 29),   // Yellow
-            error: Rgb::new(210, 15, 57),      // Red
-            info: Rgb::new(30, 102, 245),      // Blue
-            pending: Rgb::new(136, 57, 239),   // Mauve
-            starred: Rgb::new(223, 142, 29),   // Yellow
+            muted: Rgb::new(108, 111, 133),  // Subtext0
+            success: Rgb::new(64, 160, 43),  // Green
+            warning: Rgb::new(223, 142, 29), // Yellow
+            error: Rgb::new(210, 15, 57),    // Red
+            info: Rgb::new(30, 102, 245),    // Blue
+            pending: Rgb::new(136, 57, 239), // Mauve
+            starred: Rgb::new(223, 142, 29), // Yellow
         }
     }
 
@@ -153,9 +153,7 @@ impl ThemeConfig {
     /// Resolve to actual theme colors
     pub fn resolve(&self) -> ThemeColors {
         match self {
-            ThemeConfig::Preset(name) => {
-                ThemeColors::from_name(name).unwrap_or_default()
-            }
+            ThemeConfig::Preset(name) => ThemeColors::from_name(name).unwrap_or_default(),
             ThemeConfig::Custom(colors) => colors.clone(),
         }
     }

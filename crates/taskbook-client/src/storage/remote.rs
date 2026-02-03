@@ -18,8 +18,9 @@ pub struct RemoteStorage {
 
 impl RemoteStorage {
     pub fn new(server_url: &str) -> Result<Self> {
-        let creds = Credentials::load()?
-            .ok_or_else(|| TaskbookError::Auth("not logged in — run `tb register` or `tb login` first".to_string()))?;
+        let creds = Credentials::load()?.ok_or_else(|| {
+            TaskbookError::Auth("not logged in — run `tb register` or `tb login` first".to_string())
+        })?;
 
         let encryption_key = creds.encryption_key_bytes()?;
         let client = ApiClient::new(server_url, Some(&creds.token));

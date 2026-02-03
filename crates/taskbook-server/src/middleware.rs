@@ -41,16 +41,12 @@ impl FromRequestParts<AppState> for AuthUser {
             .map_err(ServerError::Database)?
             .ok_or(ServerError::Unauthorized)?;
 
-            Ok(AuthUser {
-                user_id: session.0,
-            })
+            Ok(AuthUser { user_id: session.0 })
         })
     }
 }
 
 fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {
     let value = headers.get("authorization")?.to_str().ok()?;
-    value
-        .strip_prefix("Bearer ")
-        .map(|token| token.to_string())
+    value.strip_prefix("Bearer ").map(|token| token.to_string())
 }

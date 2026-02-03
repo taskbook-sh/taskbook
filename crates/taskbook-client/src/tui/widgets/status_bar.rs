@@ -21,10 +21,7 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             StatusKind::Error => app.theme.error,
             StatusKind::Info => app.theme.info,
         };
-        let line = Line::from(vec![
-            Span::raw("  "),
-            Span::styled(&msg.text, style),
-        ]);
+        let line = Line::from(vec![Span::raw("  "), Span::styled(&msg.text, style)]);
         frame.render_widget(Paragraph::new(line), chunks[0]);
     } else if app.config.display_progress_overview {
         let stats = app.get_stats();

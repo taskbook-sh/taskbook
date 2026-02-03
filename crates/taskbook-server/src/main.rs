@@ -33,8 +33,8 @@ async fn main() {
 
     tracing::info!("Starting taskbook server on {}", addr);
 
-    let listener = TcpListener::bind(addr).await.expect("Failed to bind address");
-    axum::serve(listener, app)
+    let listener = TcpListener::bind(addr)
         .await
-        .expect("Server failed");
+        .expect("Failed to bind address");
+    axum::serve(listener, app).await.expect("Server failed");
 }

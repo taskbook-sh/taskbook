@@ -115,8 +115,9 @@ pub fn run(
 
 /// Migrate local data to the remote server.
 pub fn migrate(taskbook_dir: Option<PathBuf>) -> Result<()> {
-    let creds = Credentials::load()?
-        .ok_or_else(|| TaskbookError::Auth("not logged in — run `tb register` or `tb login` first".to_string()))?;
+    let creds = Credentials::load()?.ok_or_else(|| {
+        TaskbookError::Auth("not logged in — run `tb register` or `tb login` first".to_string())
+    })?;
 
     let config = Config::load().unwrap_or_default();
     let encryption_key = creds.encryption_key_bytes()?;

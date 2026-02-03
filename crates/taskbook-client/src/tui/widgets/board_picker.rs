@@ -5,9 +5,9 @@ use ratatui::{
     Frame,
 };
 
-use taskbook_common::board;
 use crate::tui::app::App;
 use crate::tui::ui::centered_rect;
+use taskbook_common::board;
 
 pub fn render_board_picker(
     frame: &mut Frame,

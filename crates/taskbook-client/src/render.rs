@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use colored::{ColoredString, Colorize};
 
+use crate::config::{Config, Rgb, ThemeColors};
 use taskbook_common::board;
 use taskbook_common::StorageItem;
-use crate::config::{Config, Rgb, ThemeColors};
 
 /// Statistics about items
 pub struct Stats {
@@ -361,7 +361,10 @@ impl Render {
     }
 
     pub fn invalid_ids_number(&self) {
-        eprintln!("\n {} More than one ids were given as input", self.error("✖"));
+        eprintln!(
+            "\n {} More than one ids were given as input",
+            self.error("✖")
+        );
     }
 
     pub fn invalid_priority(&self) {

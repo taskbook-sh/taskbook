@@ -38,7 +38,11 @@ pub fn render_input_dialog(
     let (display_start, display_end, cursor_in_display) = if char_count > input_width {
         let start = cursor.saturating_sub(input_width / 2);
         let end = (start + input_width).min(char_count);
-        let adjusted_start = if end == char_count { end.saturating_sub(input_width) } else { start };
+        let adjusted_start = if end == char_count {
+            end.saturating_sub(input_width)
+        } else {
+            start
+        };
         (adjusted_start, end, cursor - adjusted_start)
     } else {
         (0, char_count, cursor)
@@ -60,9 +64,7 @@ pub fn render_input_dialog(
             Span::raw(before.clone()),
             Span::styled(
                 cursor_char.to_string(),
-                Style::default()
-                    .bg(Color::White)
-                    .fg(Color::Black),
+                Style::default().bg(Color::White).fg(Color::Black),
             ),
             Span::raw(after.clone()),
         ]),

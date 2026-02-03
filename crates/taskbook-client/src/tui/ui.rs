@@ -8,12 +8,9 @@ use ratatui::{
 
 use super::app::{App, PopupState, ViewMode};
 use super::widgets::{
-    board_picker::render_board_picker,
-    board_view::render_board_view,
-    help_popup::render_help_popup,
-    input_dialog::render_input_dialog,
-    status_bar::render_status_bar,
-    timeline_view::render_timeline_view,
+    board_picker::render_board_picker, board_view::render_board_view,
+    help_popup::render_help_popup, input_dialog::render_input_dialog,
+    status_bar::render_status_bar, timeline_view::render_timeline_view,
 };
 
 /// Render the entire UI
@@ -21,9 +18,9 @@ pub fn render(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // Header
-            Constraint::Min(1),     // Content
-            Constraint::Length(2),  // Status bar
+            Constraint::Length(1), // Header
+            Constraint::Min(1),    // Content
+            Constraint::Length(2), // Status bar
         ])
         .split(frame.area());
 
@@ -78,7 +75,9 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect) {
 
     if app.display_order.is_empty() {
         let empty_msg = match app.view {
-            ViewMode::Board => "No tasks or notes. Press 't' to create a task or 'n' to create a note.",
+            ViewMode::Board => {
+                "No tasks or notes. Press 't' to create a task or 'n' to create a note."
+            }
             ViewMode::Timeline => "No tasks or notes.",
             ViewMode::Archive => "Archive is empty.",
         };
@@ -99,7 +98,14 @@ fn render_popup(frame: &mut Frame, app: &App, popup: &PopupState) {
     match popup {
         PopupState::Help => render_help_popup(frame, app),
         PopupState::EditItem { input, cursor, .. } => {
-            render_input_dialog(frame, app, "Edit Description", "Enter new description", input, *cursor);
+            render_input_dialog(
+                frame,
+                app,
+                "Edit Description",
+                "Enter new description",
+                input,
+                *cursor,
+            );
         }
         PopupState::Search { input, cursor } => {
             render_input_dialog(frame, app, "Search", "Enter search term", input, *cursor);
@@ -123,16 +129,56 @@ fn render_popup(frame: &mut Frame, app: &App, popup: &PopupState) {
             render_board_picker(frame, app, "Select Board for Note", *selected, true);
         }
         PopupState::CreateBoard { input, cursor } => {
-            render_input_dialog(frame, app, "Create Board", "Enter board name (without @)", input, *cursor);
+            render_input_dialog(
+                frame,
+                app,
+                "Create Board",
+                "Enter board name (without @)",
+                input,
+                *cursor,
+            );
         }
-        PopupState::CreateTaskWithBoard { board, input, cursor } => {
-            render_input_dialog(frame, app, &format!("Create Task in {}", board), "description p:1-3", input, *cursor);
+        PopupState::CreateTaskWithBoard {
+            board,
+            input,
+            cursor,
+        } => {
+            render_input_dialog(
+                frame,
+                app,
+                &format!("Create Task in {}", board),
+                "description p:1-3",
+                input,
+                *cursor,
+            );
         }
-        PopupState::CreateNoteWithBoard { board, input, cursor } => {
-            render_input_dialog(frame, app, &format!("Create Note in {}", board), "description", input, *cursor);
+        PopupState::CreateNoteWithBoard {
+            board,
+            input,
+            cursor,
+        } => {
+            render_input_dialog(
+                frame,
+                app,
+                &format!("Create Note in {}", board),
+                "description",
+                input,
+                *cursor,
+            );
         }
-        PopupState::RenameBoard { old_name, input, cursor } => {
-            render_input_dialog(frame, app, &format!("Rename {}", old_name), "new board name (without @)", input, *cursor);
+        PopupState::RenameBoard {
+            old_name,
+            input,
+            cursor,
+        } => {
+            render_input_dialog(
+                frame,
+                app,
+                &format!("Rename {}", old_name),
+                "new board name (without @)",
+                input,
+                *cursor,
+            );
         }
     }
 }

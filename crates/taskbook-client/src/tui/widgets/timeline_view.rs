@@ -8,8 +8,8 @@ use ratatui::{
     Frame,
 };
 
-use taskbook_common::StorageItem;
 use crate::tui::app::App;
+use taskbook_common::StorageItem;
 
 use super::item_row::{render_item_line, ItemRowOptions};
 
@@ -42,13 +42,15 @@ pub fn render_timeline_view(frame: &mut Frame, app: &App, area: Rect) {
 
         // Count stats for this date (always count all tasks)
         let total_tasks: usize = date_items.iter().filter(|i| i.is_task()).count();
-        let complete_tasks: usize = date_items.iter()
+        let complete_tasks: usize = date_items
+            .iter()
             .filter_map(|i| i.as_task())
             .filter(|t| t.is_complete)
             .count();
 
         // Filter items for display (respecting hide_completed)
-        let visible_items: Vec<&StorageItem> = date_items.iter()
+        let visible_items: Vec<&StorageItem> = date_items
+            .iter()
             .filter(|item| {
                 if app.filter.hide_completed {
                     if let Some(task) = item.as_task() {
@@ -112,7 +114,8 @@ fn render_scrollable_list(
     item_line_map: &[Option<u64>],
     selected_id: Option<u64>,
 ) {
-    let selected_line = item_line_map.iter()
+    let selected_line = item_line_map
+        .iter()
         .position(|id| *id == selected_id)
         .unwrap_or(0);
 
@@ -122,16 +125,14 @@ fn render_scrollable_list(
         0
     };
 
-    let paragraph = Paragraph::new(lines.clone())
-        .scroll((scroll_offset as u16, 0));
+    let paragraph = Paragraph::new(lines.clone()).scroll((scroll_offset as u16, 0));
     frame.render_widget(paragraph, area);
 
     if lines.len() > area.height as usize {
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(None)
             .end_symbol(None);
-        let mut scrollbar_state = ScrollbarState::new(lines.len())
-            .position(scroll_offset);
+        let mut scrollbar_state = ScrollbarState::new(lines.len()).position(scroll_offset);
         frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
     }
 }

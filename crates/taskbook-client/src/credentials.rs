@@ -60,7 +60,9 @@ impl Credentials {
         use base64::Engine;
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(&self.encryption_key)
-            .map_err(|e| crate::error::TaskbookError::General(format!("invalid encryption key: {e}")))?;
+            .map_err(|e| {
+                crate::error::TaskbookError::General(format!("invalid encryption key: {e}"))
+            })?;
         if bytes.len() != 32 {
             return Err(crate::error::TaskbookError::General(format!(
                 "encryption key must be 32 bytes, got {}",

@@ -3,9 +3,9 @@ use ratatui::{
     text::{Line, Span},
 };
 
+use crate::tui::app::App;
 use taskbook_common::board;
 use taskbook_common::StorageItem;
-use crate::tui::app::App;
 
 /// Options for rendering an item row
 pub struct ItemRowOptions {
@@ -78,7 +78,9 @@ pub fn render_item_line(
 
     // Boards (for timeline view)
     if options.show_boards {
-        let boards: Vec<String> = item.boards().iter()
+        let boards: Vec<String> = item
+            .boards()
+            .iter()
             .filter(|b| !board::board_eq(b, board::DEFAULT_BOARD))
             .map(|b| board::display_name(b))
             .collect();

@@ -3,13 +3,13 @@ use std::path::Path;
 
 use arboard::Clipboard;
 
-use taskbook_common::board::{self, DEFAULT_BOARD};
-use taskbook_common::{Note, StorageItem, Task};
 use crate::config::Config;
 use crate::directory::resolve_taskbook_directory;
 use crate::error::{Result, TaskbookError};
 use crate::render::{Render, Stats};
 use crate::storage::{LocalStorage, RemoteStorage, StorageBackend};
+use taskbook_common::board::{self, DEFAULT_BOARD};
+use taskbook_common::{Note, StorageItem, Task};
 
 pub struct Taskbook {
     storage: Box<dyn StorageBackend>,
@@ -63,13 +63,15 @@ impl Taskbook {
     }
 
     fn get_ids(&self, data: &HashMap<String, StorageItem>) -> HashSet<u64> {
-        data.keys()
-            .filter_map(|k| k.parse::<u64>().ok())
-            .collect()
+        data.keys().filter_map(|k| k.parse::<u64>().ok()).collect()
     }
 
     /// Validate IDs without rendering errors (for TUI/silent methods)
-    fn validate_ids_silent(&self, input_ids: &[u64], existing_ids: &HashSet<u64>) -> Result<Vec<u64>> {
+    fn validate_ids_silent(
+        &self,
+        input_ids: &[u64],
+        existing_ids: &HashSet<u64>,
+    ) -> Result<Vec<u64>> {
         if input_ids.is_empty() {
             return Err(TaskbookError::InvalidId(0));
         }
@@ -205,19 +207,11 @@ impl Taskbook {
     }
 
     fn filter_complete(data: &mut HashMap<String, StorageItem>) {
-        data.retain(|_, item| {
-            item.as_task()
-                .map(|t| t.is_complete)
-                .unwrap_or(false)
-        });
+        data.retain(|_, item| item.as_task().map(|t| t.is_complete).unwrap_or(false));
     }
 
     fn filter_in_progress(data: &mut HashMap<String, StorageItem>) {
-        data.retain(|_, item| {
-            item.as_task()
-                .map(|t| t.in_progress)
-                .unwrap_or(false)
-        });
+        data.retain(|_, item| item.as_task().map(|t| t.in_progress).unwrap_or(false));
     }
 
     fn filter_pending(data: &mut HashMap<String, StorageItem>) {
@@ -323,7 +317,12 @@ impl Taskbook {
     // Silent methods for TUI (no render output)
 
     /// Create a task with explicit board and description (for TUI)
-    pub fn create_task_direct(&self, boards: Vec<String>, description: String, priority: u8) -> Result<u64> {
+    pub fn create_task_direct(
+        &self,
+        boards: Vec<String>,
+        description: String,
+        priority: u8,
+    ) -> Result<u64> {
         if description.is_empty() {
             return Err(TaskbookError::InvalidId(0));
         }
@@ -451,7 +450,10 @@ impl Taskbook {
         let existing_ids = self.get_ids(&data);
         self.validate_ids_silent(&[id], &existing_ids)?;
 
-        let normalized: Vec<String> = boards.into_iter().map(|b| board::normalize_board_name(&b)).collect();
+        let normalized: Vec<String> = boards
+            .into_iter()
+            .map(|b| board::normalize_board_name(&b))
+            .collect();
         if let Some(item) = data.get_mut(&id.to_string()) {
             item.set_boards(normalized);
         }
@@ -510,7 +512,8 @@ impl Taskbook {
         let existing_ids = self.get_ids(&data);
         let validated_ids = self.validate_ids_silent(ids, &existing_ids)?;
 
-        let descriptions: Vec<String> = validated_ids.iter()
+        let descriptions: Vec<String> = validated_ids
+            .iter()
             .filter_map(|id| data.get(&id.to_string()))
             .map(|item| item.description().to_string())
             .collect();
@@ -519,8 +522,8 @@ impl Taskbook {
             return Err(TaskbookError::NoItemsToCopy);
         }
 
-        let mut clipboard = Clipboard::new()
-            .map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
+        let mut clipboard =
+            Clipboard::new().map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
         clipboard
             .set_text(descriptions.join("\n"))
             .map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
@@ -539,7 +542,13 @@ impl Taskbook {
             if boards.iter().any(|b| board::board_eq(b, old_name)) {
                 let new_boards: Vec<String> = boards
                     .iter()
-                    .map(|b| if board::board_eq(b, old_name) { normalized_new.clone() } else { b.clone() })
+                    .map(|b| {
+                        if board::board_eq(b, old_name) {
+                            normalized_new.clone()
+                        } else {
+                            b.clone()
+                        }
+                    })
                     .collect();
                 item.set_boards(new_boards);
                 count += 1;
@@ -603,8 +612,8 @@ impl Taskbook {
             return Err(TaskbookError::NoItemsToCopy);
         }
 
-        let mut clipboard = Clipboard::new()
-            .map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
+        let mut clipboard =
+            Clipboard::new().map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
         clipboard
             .set_text(descriptions.join("\n"))
             .map_err(|e| TaskbookError::Clipboard(e.to_string()))?;
@@ -782,7 +791,10 @@ impl Taskbook {
 
         for term in terms {
             let normalized = board::normalize_board_name(term);
-            if stored_boards.iter().any(|b| board::board_eq(b, &normalized)) {
+            if stored_boards
+                .iter()
+                .any(|b| board::board_eq(b, &normalized))
+            {
                 if !boards.iter().any(|b| board::board_eq(b, &normalized)) {
                     boards.push(normalized);
                 }

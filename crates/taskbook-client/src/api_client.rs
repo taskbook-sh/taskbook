@@ -207,9 +207,7 @@ impl ApiClient {
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(TaskbookError::Network(
-                "failed to save archive".to_string(),
-            ))
+            Err(TaskbookError::Network("failed to save archive".to_string()))
         }
     }
 }

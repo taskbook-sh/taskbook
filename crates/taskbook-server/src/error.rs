@@ -33,11 +33,7 @@ impl IntoResponse for ServerError {
             ServerError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "Invalid credentials"),
             ServerError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
             ServerError::Validation(msg) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({ "error": msg })),
-                )
-                    .into_response();
+                return (StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))).into_response();
             }
             ServerError::Internal(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")

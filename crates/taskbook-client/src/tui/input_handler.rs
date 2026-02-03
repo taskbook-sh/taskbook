@@ -23,7 +23,9 @@ pub fn handle_text_input(key: KeyEvent, input: &str, cursor: usize) -> InputResu
         KeyCode::Enter => InputResult::Submit,
         KeyCode::Backspace => {
             if cursor > 0 {
-                let new_input: String = chars.iter().take(cursor - 1)
+                let new_input: String = chars
+                    .iter()
+                    .take(cursor - 1)
                     .chain(chars.iter().skip(cursor))
                     .collect();
                 InputResult::Changed {
@@ -39,7 +41,9 @@ pub fn handle_text_input(key: KeyEvent, input: &str, cursor: usize) -> InputResu
         }
         KeyCode::Delete => {
             if cursor < char_count {
-                let new_input: String = chars.iter().take(cursor)
+                let new_input: String = chars
+                    .iter()
+                    .take(cursor)
                     .chain(chars.iter().skip(cursor + 1))
                     .collect();
                 InputResult::Changed {
@@ -53,18 +57,14 @@ pub fn handle_text_input(key: KeyEvent, input: &str, cursor: usize) -> InputResu
                 }
             }
         }
-        KeyCode::Left => {
-            InputResult::Changed {
-                input: input.to_string(),
-                cursor: cursor.saturating_sub(1),
-            }
-        }
-        KeyCode::Right => {
-            InputResult::Changed {
-                input: input.to_string(),
-                cursor: (cursor + 1).min(char_count),
-            }
-        }
+        KeyCode::Left => InputResult::Changed {
+            input: input.to_string(),
+            cursor: cursor.saturating_sub(1),
+        },
+        KeyCode::Right => InputResult::Changed {
+            input: input.to_string(),
+            cursor: (cursor + 1).min(char_count),
+        },
         KeyCode::Home | KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             InputResult::Changed {
                 input: input.to_string(),
@@ -99,7 +99,9 @@ pub fn handle_text_input(key: KeyEvent, input: &str, cursor: usize) -> InputResu
                 let before_cursor: String = chars.iter().take(cursor).collect();
                 let trimmed = before_cursor.trim_end();
                 let last_space = trimmed.rfind(' ').map(|i| i + 1).unwrap_or(0);
-                let new_input: String = chars.iter().take(last_space)
+                let new_input: String = chars
+                    .iter()
+                    .take(last_space)
                     .chain(chars.iter().skip(cursor))
                     .collect();
                 InputResult::Changed {
@@ -114,7 +116,9 @@ pub fn handle_text_input(key: KeyEvent, input: &str, cursor: usize) -> InputResu
             }
         }
         KeyCode::Char(c) => {
-            let new_input: String = chars.iter().take(cursor)
+            let new_input: String = chars
+                .iter()
+                .take(cursor)
                 .chain(std::iter::once(&c))
                 .chain(chars.iter().skip(cursor))
                 .collect();

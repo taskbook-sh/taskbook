@@ -79,7 +79,9 @@ fn select_custom_directory_candidate(cli_taskbook_dir: Option<&Path>) -> Result<
 
 fn parse_directory(directory: &str) -> PathBuf {
     let expanded = expand_directory(directory);
-    PathBuf::from(&expanded).canonicalize().unwrap_or_else(|_| PathBuf::from(&expanded))
+    PathBuf::from(&expanded)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(&expanded))
 }
 
 fn expand_directory(directory: &str) -> String {
