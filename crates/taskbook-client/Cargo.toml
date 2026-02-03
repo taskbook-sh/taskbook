@@ -1,6 +1,6 @@
 [package]
 name = "taskbook-client"
-version = "0.5.0"
+version = "1.0.0"
 edition = "2021"
 description = "Tasks, boards & notes for the command-line habitat"
 license = "MIT"

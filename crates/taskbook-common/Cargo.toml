@@ -1,6 +1,6 @@
 [package]
 name = "taskbook-common"
-version = "0.5.0"
+version = "1.0.0"
 edition = "2021"
 description = "Shared types for taskbook-rs"
 license = "MIT"
