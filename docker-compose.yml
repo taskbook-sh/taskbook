@@ -22,7 +22,11 @@ services:
     environment:
       TB_HOST: "0.0.0.0"
       TB_PORT: "8080"
-      TB_DATABASE_URL: "postgres://taskbook:taskbook@postgres/taskbook"
+      TB_DB_HOST: postgres
+      TB_DB_PORT: "5432"
+      TB_DB_NAME: taskbook
+      TB_DB_USER: taskbook
+      TB_DB_PASSWORD: taskbook
       TB_SESSION_EXPIRY_DAYS: "30"
       RUST_LOG: "info"
     ports:
