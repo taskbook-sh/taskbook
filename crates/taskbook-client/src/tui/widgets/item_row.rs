@@ -3,8 +3,8 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use crate::board;
-use crate::models::StorageItem;
+use taskbook_common::board;
+use taskbook_common::StorageItem;
 use crate::tui::app::App;
 
 /// Options for rendering an item row

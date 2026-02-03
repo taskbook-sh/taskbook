@@ -161,6 +161,30 @@ impl ThemeConfig {
     }
 }
 
+/// Sync configuration for remote server
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncConfig {
+    #[serde(default)]
+    pub enabled: bool,
+
+    #[serde(default = "default_server_url")]
+    pub server_url: String,
+}
+
+fn default_server_url() -> String {
+    "http://localhost:8080".to_string()
+}
+
+impl Default for SyncConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            server_url: default_server_url(),
+        }
+    }
+}
+
 /// Configuration settings for taskbook
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -176,6 +200,9 @@ pub struct Config {
 
     #[serde(default)]
     pub theme: ThemeConfig,
+
+    #[serde(default)]
+    pub sync: SyncConfig,
 }
 
 fn default_taskbook_directory() -> String {
@@ -193,6 +220,7 @@ impl Default for Config {
             display_complete_tasks: true,
             display_progress_overview: true,
             theme: ThemeConfig::default(),
+            sync: SyncConfig::default(),
         }
     }
 }
@@ -253,5 +281,26 @@ impl Config {
     #[allow(dead_code)]
     pub fn get_taskbook_directory(&self) -> PathBuf {
         Self::format_taskbook_dir(&self.taskbook_directory)
+    }
+
+    /// Save the configuration to file
+    pub fn save(&self) -> Result<()> {
+        let config_path = Self::config_file_path();
+        let data = serde_json::to_string_pretty(self)?;
+        fs::write(&config_path, data)?;
+        Ok(())
+    }
+
+    /// Enable sync with the given server URL and save
+    pub fn enable_sync(&mut self, server_url: &str) -> Result<()> {
+        self.sync.enabled = true;
+        self.sync.server_url = server_url.to_string();
+        self.save()
+    }
+
+    /// Disable sync and save
+    pub fn disable_sync(&mut self) -> Result<()> {
+        self.sync.enabled = false;
+        self.save()
     }
 }

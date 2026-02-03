@@ -1,0 +1,30 @@
+[package]
+name = "taskbook-client"
+version = "0.5.0"
+edition = "2021"
+description = "Tasks, boards & notes for the command-line habitat"
+license = "MIT"
+repository = "https://github.com/klaussinani/taskbook"
+keywords = ["cli", "task", "todo", "board", "note"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+taskbook-common = { path = "../taskbook-common" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+colored = "2"
+dirs = "5"
+chrono = "0.4"
+arboard = "3"
+uuid = { version = "1", features = ["v4"] }
+thiserror = "1"
+ratatui = "0.29"
+crossterm = "0.28"
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+base64 = "0.22"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+[[bin]]
+name = "tb"
+path = "src/main.rs"

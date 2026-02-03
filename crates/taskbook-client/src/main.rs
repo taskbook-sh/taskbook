@@ -3,12 +3,13 @@ use std::process;
 
 use clap::Parser;
 
-mod board;
+mod api_client;
+mod auth;
 mod commands;
 mod config;
+mod credentials;
 mod directory;
 mod error;
-mod models;
 mod render;
 mod storage;
 mod taskbook;
@@ -40,6 +41,13 @@ const HELP_TEXT: &str = r#"
       --timeline, -i     Display timeline view
       --version, -v      Display installed version
 
+    Server commands
+      --register         Register a new server account
+      --login            Log in to an existing account
+      --logout           Log out and delete credentials
+      --status           Show sync status
+      --migrate          Push local data to server
+
     Examples
       $ tb
       $ tb --archive
@@ -60,6 +68,11 @@ const HELP_TEXT: &str = r#"
       $ tb --task @coding Improve documentation
       $ tb --task Make some buttercream
       $ tb --timeline
+      $ tb --register --server http://localhost:8080 --username user --email a@b.com --password secret123
+      $ tb --login --server http://localhost:8080 --username user --password secret123 --key <base64>
+      $ tb --logout
+      $ tb --status
+      $ tb --migrate
 "#;
 
 #[derive(Parser)]
@@ -145,10 +158,126 @@ struct Cli {
     /// Run in CLI mode (non-interactive)
     #[arg(long)]
     cli: bool,
+
+    // --- Server commands ---
+    /// Register a new server account
+    #[arg(long)]
+    register: bool,
+
+    /// Log in to an existing server account
+    #[arg(long)]
+    login: bool,
+
+    /// Log out and delete credentials
+    #[arg(long)]
+    logout: bool,
+
+    /// Show sync status
+    #[arg(long)]
+    status: bool,
+
+    /// Push local data to server
+    #[arg(long)]
+    migrate: bool,
+
+    /// Server URL for register/login
+    #[arg(long)]
+    server: Option<String>,
+
+    /// Username for register/login
+    #[arg(long)]
+    username: Option<String>,
+
+    /// Email for register
+    #[arg(long)]
+    email: Option<String>,
+
+    /// Password for register/login
+    #[arg(long)]
+    password: Option<String>,
+
+    /// Encryption key (base64) for login
+    #[arg(long)]
+    key: Option<String>,
 }
 
 fn main() {
     let cli = Cli::parse();
+
+    // Handle server commands first
+    if cli.register {
+        let server = cli.server.unwrap_or_else(|| {
+            eprintln!("Error: --server is required for --register");
+            process::exit(1);
+        });
+        let username = cli.username.unwrap_or_else(|| {
+            eprintln!("Error: --username is required for --register");
+            process::exit(1);
+        });
+        let email = cli.email.unwrap_or_else(|| {
+            eprintln!("Error: --email is required for --register");
+            process::exit(1);
+        });
+        let password = cli.password.unwrap_or_else(|| {
+            eprintln!("Error: --password is required for --register");
+            process::exit(1);
+        });
+
+        if let Err(e) = auth::register(&server, &username, &email, &password) {
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
+    if cli.login {
+        let server = cli.server.unwrap_or_else(|| {
+            eprintln!("Error: --server is required for --login");
+            process::exit(1);
+        });
+        let username = cli.username.unwrap_or_else(|| {
+            eprintln!("Error: --username is required for --login");
+            process::exit(1);
+        });
+        let password = cli.password.unwrap_or_else(|| {
+            eprintln!("Error: --password is required for --login");
+            process::exit(1);
+        });
+        let key = cli.key.unwrap_or_else(|| {
+            eprintln!("Error: --key (encryption key) is required for --login");
+            process::exit(1);
+        });
+
+        if let Err(e) = auth::login(&server, &username, &password, &key) {
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
+    if cli.logout {
+        if let Err(e) = auth::logout() {
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
+    if cli.status {
+        if let Err(e) = auth::status() {
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
+    if cli.migrate {
+        if let Err(e) = commands::migrate(cli.taskbook_dir) {
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
 
     // Determine if we should run TUI or CLI mode
     let has_action_flags = cli.archive

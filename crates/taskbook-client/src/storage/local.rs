@@ -5,10 +5,12 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::models::StorageItem;
+use taskbook_common::StorageItem;
 
-/// Storage handles JSON persistence with atomic writes
-pub struct Storage {
+use super::StorageBackend;
+
+/// Local file-based storage with atomic writes
+pub struct LocalStorage {
     main_app_dir: PathBuf,
     storage_dir: PathBuf,
     archive_dir: PathBuf,
@@ -17,7 +19,7 @@ pub struct Storage {
     archive_file: PathBuf,
 }
 
-impl Storage {
+impl LocalStorage {
     pub fn new(taskbook_dir: &Path) -> Result<Self> {
         let main_app_dir = taskbook_dir.to_path_buf();
         let storage_dir = main_app_dir.join("storage");
@@ -41,7 +43,6 @@ impl Storage {
     }
 
     fn ensure_directories(&self) -> Result<()> {
-        // Create directories if they don't exist
         if !self.main_app_dir.exists() {
             fs::create_dir_all(&self.main_app_dir)?;
         }
@@ -55,7 +56,6 @@ impl Storage {
             fs::create_dir(&self.temp_dir)?;
         }
 
-        // Clean temp directory
         self.clean_temp_dir()?;
 
         Ok(())
@@ -81,9 +81,10 @@ impl Storage {
         let temp_filename = filename.replace(".json", &format!(".TEMP-{}.json", random_string));
         self.temp_dir.join(temp_filename)
     }
+}
 
-    /// Get all items from storage
-    pub fn get(&self) -> Result<HashMap<String, StorageItem>> {
+impl StorageBackend for LocalStorage {
+    fn get(&self) -> Result<HashMap<String, StorageItem>> {
         if !self.storage_file.exists() {
             return Ok(HashMap::new());
         }
@@ -93,8 +94,7 @@ impl Storage {
         Ok(data)
     }
 
-    /// Get all items from archive
-    pub fn get_archive(&self) -> Result<HashMap<String, StorageItem>> {
+    fn get_archive(&self) -> Result<HashMap<String, StorageItem>> {
         if !self.archive_file.exists() {
             return Ok(HashMap::new());
         }
@@ -104,8 +104,7 @@ impl Storage {
         Ok(data)
     }
 
-    /// Atomically save data to storage
-    pub fn set(&self, data: &HashMap<String, StorageItem>) -> Result<()> {
+    fn set(&self, data: &HashMap<String, StorageItem>) -> Result<()> {
         let json = serde_json::to_string_pretty(data)?;
         let temp_file = self.get_temp_file(&self.storage_file);
 
@@ -115,8 +114,7 @@ impl Storage {
         Ok(())
     }
 
-    /// Atomically save data to archive
-    pub fn set_archive(&self, data: &HashMap<String, StorageItem>) -> Result<()> {
+    fn set_archive(&self, data: &HashMap<String, StorageItem>) -> Result<()> {
         let json = serde_json::to_string_pretty(data)?;
         let temp_file = self.get_temp_file(&self.archive_file);
 

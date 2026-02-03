@@ -5,8 +5,8 @@ use ratatui::{
     Frame,
 };
 
-use crate::board;
-use crate::models::StorageItem;
+use taskbook_common::board;
+use taskbook_common::StorageItem;
 use crate::tui::app::App;
 
 use super::item_row::{render_item_line, ItemRowOptions};

@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::board;
+use taskbook_common::board;
 use crate::error::Result;
 
 use super::app::{App, PopupState, StatusKind, ViewMode};

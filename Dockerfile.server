@@ -1,0 +1,21 @@
+FROM rust:1.91.1-bookworm AS builder
+
+WORKDIR /app
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+
+RUN cargo build --release --package taskbook-server
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/tb-server /usr/local/bin/tb-server
+
+ENV TB_HOST=0.0.0.0
+ENV TB_PORT=8080
+
+EXPOSE 8080
+
+CMD ["tb-server"]

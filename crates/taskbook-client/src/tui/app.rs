@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use crate::board;
+use taskbook_common::board;
+use taskbook_common::StorageItem;
 use crate::config::Config;
 use crate::error::Result;
-use crate::models::StorageItem;
 use crate::render::Stats;
 use crate::taskbook::Taskbook;
 

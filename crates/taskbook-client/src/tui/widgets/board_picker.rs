@@ -5,7 +5,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::board;
+use taskbook_common::board;
 use crate::tui::app::App;
 use crate::tui::ui::centered_rect;
 

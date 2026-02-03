@@ -25,6 +25,15 @@ pub enum TaskbookError {
 
     #[error("TUI error: {0}")]
     Tui(String),
+
+    #[error("Network error: {0}")]
+    Network(String),
+
+    #[error("Authentication error: {0}")]
+    Auth(String),
+
+    #[error("{0}")]
+    General(String),
 }
 
 pub type Result<T> = std::result::Result<T, TaskbookError>;

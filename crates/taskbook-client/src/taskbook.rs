@@ -3,24 +3,30 @@ use std::path::Path;
 
 use arboard::Clipboard;
 
-use crate::board::{self, DEFAULT_BOARD};
+use taskbook_common::board::{self, DEFAULT_BOARD};
+use taskbook_common::{Note, StorageItem, Task};
 use crate::config::Config;
 use crate::directory::resolve_taskbook_directory;
 use crate::error::{Result, TaskbookError};
-use crate::models::{Note, StorageItem, Task};
 use crate::render::{Render, Stats};
-use crate::storage::Storage;
+use crate::storage::{LocalStorage, RemoteStorage, StorageBackend};
 
 pub struct Taskbook {
-    storage: Storage,
+    storage: Box<dyn StorageBackend>,
     render: Render,
 }
 
 impl Taskbook {
     pub fn new(taskbook_dir: Option<&Path>) -> Result<Self> {
-        let resolved_dir = resolve_taskbook_directory(taskbook_dir)?;
-        let storage = Storage::new(&resolved_dir)?;
         let config = Config::load().unwrap_or_default();
+
+        let storage: Box<dyn StorageBackend> = if config.sync.enabled {
+            Box::new(RemoteStorage::new(&config.sync.server_url)?)
+        } else {
+            let resolved_dir = resolve_taskbook_directory(taskbook_dir)?;
+            Box::new(LocalStorage::new(&resolved_dir)?)
+        };
+
         let render = Render::new(config);
 
         Ok(Self { storage, render })

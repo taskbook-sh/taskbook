@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Project Overview
 
-Taskbook-rs is a Rust port of the Node.js [taskbook](https://github.com/klaussinani/taskbook) CLI application. It provides task and note management from the command line with board organization, priority levels, and timeline views.
+Taskbook-rs is a Rust port of the Node.js [taskbook](https://github.com/klaussinani/taskbook) CLI application. It provides task and note management from the command line with board organization, priority levels, and timeline views. It supports both local file storage and remote server sync with client-side encryption.
 
 ## Build & Development
 
@@ -20,10 +20,13 @@ cargo build
 # Build release
 cargo build --release
 
-# Run directly
-cargo run -- --help
-cargo run -- --task "My task"
-cargo run              # Display board view
+# Run the client
+cargo run --package taskbook-client -- --help
+cargo run --package taskbook-client -- --task "My task"
+cargo run --package taskbook-client              # Display board view
+
+# Run the server
+cargo run --package taskbook-server
 
 # Run tests
 cargo test
@@ -32,52 +35,88 @@ cargo test
 cargo clippy
 ```
 
-The binary is named `tb` and installs to `target/release/tb` or `target/debug/tb`.
+The client binary is named `tb` and the server binary is `tb-server`.
 
 ## Architecture
 
+This is a Cargo workspace with three crates:
+
 ```
-src/
-├── main.rs         # CLI entry point using clap
-├── lib.rs          # Library exports
-├── commands.rs     # Routes CLI flags to taskbook methods
-├── taskbook.rs     # Core business logic (CRUD operations)
-├── storage.rs      # JSON file persistence with atomic writes
-├── config.rs       # ~/.taskbook.json configuration
-├── directory.rs    # Taskbook directory resolution
-├── render.rs       # Terminal output with colored formatting
-├── error.rs        # Error types using thiserror
-└── models/
-    ├── mod.rs      # StorageItem enum (Task | Note)
-    ├── item.rs     # Item trait definition
-    ├── task.rs     # Task struct with serde
-    └── note.rs     # Note struct with serde
+crates/
+├── taskbook-common/        # Shared types, models, encryption
+│   └── src/
+│       ├── lib.rs          # Module exports
+│       ├── api.rs          # Shared API request/response types
+│       ├── board.rs        # Board name handling, normalization
+│       ├── encryption.rs   # AES-256-GCM encrypt/decrypt
+│       ├── error.rs        # CommonError type
+│       └── models/         # StorageItem, Task, Note, Item trait
+│
+├── taskbook-client/        # CLI + TUI binary (tb)
+│   └── src/
+│       ├── main.rs         # CLI entry point using clap
+│       ├── commands.rs     # Routes CLI flags to taskbook methods + migrate
+│       ├── taskbook.rs     # Core business logic (CRUD operations)
+│       ├── api_client.rs   # HTTP client for server communication
+│       ├── auth.rs         # Register, login, logout, status commands
+│       ├── credentials.rs  # Encryption key and token management
+│       ├── config.rs       # ~/.taskbook.json configuration (with sync section)
+│       ├── directory.rs    # Taskbook directory resolution
+│       ├── render.rs       # Terminal output with colored formatting
+│       ├── error.rs        # Error types using thiserror
+│       ├── storage/
+│       │   ├── mod.rs      # StorageBackend trait
+│       │   ├── local.rs    # LocalStorage (file-based)
+│       │   └── remote.rs   # RemoteStorage (HTTP + encryption)
+│       └── tui/            # Interactive TUI (ratatui + crossterm)
+│
+└── taskbook-server/        # Server binary (tb-server)
+    └── src/
+        ├── main.rs         # Axum server entry point
+        ├── config.rs       # Server config from environment variables
+        ├── db.rs           # PostgreSQL connection pool (sqlx)
+        ├── router.rs       # Route definitions and AppState
+        ├── auth.rs         # Argon2id password hashing
+        ├── error.rs        # ServerError → HTTP response mapping
+        ├── middleware.rs    # Auth middleware (Bearer token extraction)
+        ├── handlers/
+        │   ├── user.rs     # POST /register, POST /login, DELETE /logout, GET /me
+        │   ├── items.rs    # GET/PUT /items, GET/PUT /items/archive
+        │   └── health.rs   # GET /health
+        └── migrations/
+            └── 001_initial.sql  # Users, sessions, items tables
 ```
 
 ### Key Design Decisions
 
-1. **Backward Compatible JSON Format**: Uses `#[serde(rename = "...")]` to match the original Node.js field names (`_id`, `_date`, `_isTask`, `isStarred`, etc.) for seamless data migration.
+1. **StorageBackend Trait**: `Taskbook` business logic is storage-agnostic via `Box<dyn StorageBackend>`. Backend selection is config-driven — local file storage by default, remote server when `sync.enabled = true`.
 
-2. **Atomic Writes**: Storage operations write to a temp file first, then rename to prevent data corruption on crash.
+2. **Client-Side Encryption**: All data is encrypted with AES-256-GCM before being sent to the server. The 32-byte encryption key is generated on registration and never leaves the client. Each item is encrypted individually with a unique random nonce.
 
-3. **Directory Resolution Priority**:
+3. **Backward Compatible JSON Format**: Uses `#[serde(rename = "...")]` to match the original Node.js field names (`_id`, `_date`, `_isTask`, `isStarred`, etc.) for seamless data migration.
+
+4. **Atomic Writes**: Local storage operations write to a temp file first, then rename to prevent data corruption on crash.
+
+5. **Directory Resolution Priority**:
    - `--taskbook-dir` CLI flag (highest)
    - `TASKBOOK_DIR` environment variable
    - `~/.taskbook.json` config file
    - Default `~/.taskbook/` (lowest)
 
-4. **Storage Structure**:
+6. **Storage Structure (Local)**:
    ```
    ~/.taskbook/
    ├── storage/storage.json   # Active items
    ├── archive/archive.json   # Deleted items
-   └── .temp/                  # Atomic write temp files
+   ├── credentials.json       # Server token + encryption key
+   └── .temp/                 # Atomic write temp files
    ```
 
 ## CLI Usage
 
 ```bash
-tb                          # Display board view
+# Task management
+tb                          # Display board view (TUI)
 tb --task "Description"     # Create task
 tb --task @board "Desc"     # Create task in specific board
 tb --task "Desc" p:2        # Create with priority (1=normal, 2=medium, 3=high)
@@ -96,10 +135,52 @@ tb --timeline               # Chronological view
 tb --archive                # View archived items
 tb --clear                  # Delete all completed tasks
 tb --copy <id> [id...]      # Copy descriptions to clipboard
+
+# Server sync
+tb --register --server <url> --username <name> --email <email> --password <pass>
+tb --login --server <url> --username <name> --password <pass> --key <base64>
+tb --logout
+tb --status
+tb --migrate                # Push local data to server
 ```
+
+## Server Configuration
+
+The server reads configuration from environment variables:
+
+```bash
+TB_HOST=0.0.0.0              # Listen address
+TB_PORT=8080                  # Listen port
+TB_DATABASE_URL=postgres://user:pass@localhost/taskbook
+TB_SESSION_EXPIRY_DAYS=30     # Session token expiry
+```
+
+### Running with Docker
+
+```bash
+docker build -f Dockerfile.server -t tb-server .
+docker run -p 8080:8080 -e TB_DATABASE_URL=postgres://... tb-server
+```
+
+## API Endpoints
+
+All under `/api/v1/`:
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | /health | No | Health check |
+| POST | /register | No | Create account |
+| POST | /login | No | Get session token |
+| DELETE | /logout | Yes | Invalidate session |
+| GET | /me | Yes | Get user info |
+| GET | /items | Yes | Get encrypted items |
+| PUT | /items | Yes | Replace all items |
+| GET | /items/archive | Yes | Get encrypted archive |
+| PUT | /items/archive | Yes | Replace all archived items |
 
 ## Dependencies
 
+### Client (taskbook-client)
 - `clap` - CLI argument parsing
 - `serde` / `serde_json` - JSON serialization
 - `colored` - Terminal colors
@@ -108,6 +189,20 @@ tb --copy <id> [id...]      # Copy descriptions to clipboard
 - `arboard` - Clipboard access
 - `uuid` - Temp file naming
 - `thiserror` - Error handling
+- `ratatui` / `crossterm` - Terminal UI
+- `reqwest` - HTTP client for server sync
+- `base64` - Encoding encrypted data
+
+### Common (taskbook-common)
+- `aes-gcm` - AES-256-GCM encryption
+- `rand` - Cryptographic random number generation
+
+### Server (taskbook-server)
+- `axum` - HTTP framework
+- `sqlx` - PostgreSQL async driver with migrations
+- `argon2` - Password hashing (Argon2id)
+- `tower-http` - HTTP middleware (CORS, tracing)
+- `tracing` / `tracing-subscriber` - Structured logging
 
 ## Testing Notes
 

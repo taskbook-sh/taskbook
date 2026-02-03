@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use colored::{ColoredString, Colorize};
 
-use crate::board;
+use taskbook_common::board;
+use taskbook_common::StorageItem;
 use crate::config::{Config, Rgb, ThemeColors};
-use crate::models::StorageItem;
 
 /// Statistics about items
 pub struct Stats {

@@ -1,0 +1,11 @@
+target/
+.git/
+.gitignore
+*.md
+!CLAUDE.md
+.devenv/
+.direnv/
+result
+.env
+docker-compose.yml
+Dockerfile*
