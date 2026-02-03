@@ -204,26 +204,14 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
-    // Handle server commands first
+    // Handle server commands first (interactive prompts for missing values)
     if cli.register {
-        let server = cli.server.unwrap_or_else(|| {
-            eprintln!("Error: --server is required for --register");
-            process::exit(1);
-        });
-        let username = cli.username.unwrap_or_else(|| {
-            eprintln!("Error: --username is required for --register");
-            process::exit(1);
-        });
-        let email = cli.email.unwrap_or_else(|| {
-            eprintln!("Error: --email is required for --register");
-            process::exit(1);
-        });
-        let password = cli.password.unwrap_or_else(|| {
-            eprintln!("Error: --password is required for --register");
-            process::exit(1);
-        });
-
-        if let Err(e) = auth::register(&server, &username, &email, &password) {
+        if let Err(e) = auth::register(
+            cli.server.as_deref(),
+            cli.username.as_deref(),
+            cli.email.as_deref(),
+            cli.password.as_deref(),
+        ) {
             eprintln!("Error: {}", e);
             process::exit(1);
         }
@@ -231,24 +219,12 @@ fn main() {
     }
 
     if cli.login {
-        let server = cli.server.unwrap_or_else(|| {
-            eprintln!("Error: --server is required for --login");
-            process::exit(1);
-        });
-        let username = cli.username.unwrap_or_else(|| {
-            eprintln!("Error: --username is required for --login");
-            process::exit(1);
-        });
-        let password = cli.password.unwrap_or_else(|| {
-            eprintln!("Error: --password is required for --login");
-            process::exit(1);
-        });
-        let key = cli.key.unwrap_or_else(|| {
-            eprintln!("Error: --key (encryption key) is required for --login");
-            process::exit(1);
-        });
-
-        if let Err(e) = auth::login(&server, &username, &password, &key) {
+        if let Err(e) = auth::login(
+            cli.server.as_deref(),
+            cli.username.as_deref(),
+            cli.password.as_deref(),
+            cli.key.as_deref(),
+        ) {
             eprintln!("Error: {}", e);
             process::exit(1);
         }

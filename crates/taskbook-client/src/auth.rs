@@ -1,3 +1,5 @@
+use std::io::{self, Write};
+
 use base64::Engine;
 use colored::Colorize;
 
@@ -6,14 +8,62 @@ use crate::config::Config;
 use crate::credentials::Credentials;
 use crate::error::Result;
 
-/// Register a new account on the server.
-pub fn register(server_url: &str, username: &str, email: &str, password: &str) -> Result<()> {
-    let client = ApiClient::new(server_url, None);
+fn prompt(message: &str) -> String {
+    print!("{}", message);
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    input.trim().to_string()
+}
+
+fn prompt_password(message: &str) -> String {
+    rpassword::prompt_password(message).unwrap_or_default()
+}
+
+/// Register a new account on the server (interactive).
+pub fn register(
+    server_url: Option<&str>,
+    username: Option<&str>,
+    email: Option<&str>,
+    password: Option<&str>,
+) -> Result<()> {
+    println!("{}", "Register new account".bold());
+    println!();
+
+    let server = match server_url {
+        Some(s) => s.to_string(),
+        None => prompt("Server URL: "),
+    };
+
+    let user = match username {
+        Some(u) => u.to_string(),
+        None => prompt("Username: "),
+    };
+
+    let mail = match email {
+        Some(e) => e.to_string(),
+        None => prompt("Email: "),
+    };
+
+    let pass = match password {
+        Some(p) => p.to_string(),
+        None => {
+            let p1 = prompt_password("Password: ");
+            let p2 = prompt_password("Confirm password: ");
+            if p1 != p2 {
+                eprintln!("{}", "Passwords do not match".red());
+                std::process::exit(1);
+            }
+            p1
+        }
+    };
+
+    let client = ApiClient::new(&server, None);
 
     let resp = client.register(&RegisterRequest {
-        username: username.to_string(),
-        email: email.to_string(),
-        password: password.to_string(),
+        username: user,
+        email: mail,
+        password: pass,
     })?;
 
     // Generate encryption key locally
@@ -22,7 +72,7 @@ pub fn register(server_url: &str, username: &str, email: &str, password: &str) -
 
     // Save credentials
     let creds = Credentials {
-        server_url: server_url.to_string(),
+        server_url: server.clone(),
         token: resp.token,
         encryption_key: key_b64.clone(),
     };
@@ -30,8 +80,9 @@ pub fn register(server_url: &str, username: &str, email: &str, password: &str) -
 
     // Enable sync in config
     let mut config = Config::load().unwrap_or_default();
-    config.enable_sync(server_url)?;
+    config.enable_sync(&server)?;
 
+    println!();
     println!("{}", "Registration successful!".green().bold());
     println!("{}", "Sync is now enabled.".green());
     println!();
@@ -39,31 +90,62 @@ pub fn register(server_url: &str, username: &str, email: &str, password: &str) -
         "{}",
         "Your encryption key (save this — it cannot be recovered):".yellow()
     );
+    println!();
     println!("  {}", key_b64.bright_white().bold());
+    println!();
 
     Ok(())
 }
 
-/// Log in to an existing account.
-pub fn login(server_url: &str, username: &str, password: &str, encryption_key: &str) -> Result<()> {
-    let client = ApiClient::new(server_url, None);
+/// Log in to an existing account (interactive).
+pub fn login(
+    server_url: Option<&str>,
+    username: Option<&str>,
+    password: Option<&str>,
+    encryption_key: Option<&str>,
+) -> Result<()> {
+    println!("{}", "Login".bold());
+    println!();
+
+    let server = match server_url {
+        Some(s) => s.to_string(),
+        None => prompt("Server URL: "),
+    };
+
+    let user = match username {
+        Some(u) => u.to_string(),
+        None => prompt("Username: "),
+    };
+
+    let pass = match password {
+        Some(p) => p.to_string(),
+        None => prompt_password("Password: "),
+    };
+
+    let key = match encryption_key {
+        Some(k) => k.to_string(),
+        None => prompt("Encryption key: "),
+    };
+
+    let client = ApiClient::new(&server, None);
 
     let resp = client.login(&LoginRequest {
-        username: username.to_string(),
-        password: password.to_string(),
+        username: user,
+        password: pass,
     })?;
 
     let creds = Credentials {
-        server_url: server_url.to_string(),
+        server_url: server.clone(),
         token: resp.token,
-        encryption_key: encryption_key.to_string(),
+        encryption_key: key,
     };
     creds.save()?;
 
     // Enable sync in config
     let mut config = Config::load().unwrap_or_default();
-    config.enable_sync(server_url)?;
+    config.enable_sync(&server)?;
 
+    println!();
     println!("{}", "Login successful!".green().bold());
     println!("{}", "Sync is now enabled.".green());
 
