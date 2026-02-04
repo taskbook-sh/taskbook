@@ -9,6 +9,7 @@ mod commands;
 mod config;
 mod credentials;
 mod directory;
+mod editor;
 mod error;
 mod render;
 mod storage;
@@ -28,11 +29,12 @@ const HELP_TEXT: &str = r#"
       --copy, -y         Copy item description
       --delete, -d       Delete item
       --edit, -e         Edit item description
+      --edit-note        Edit note in external editor
       --find, -f         Search for items
       --help, -h         Display help message
       --list, -l         List items by attributes
       --move, -m         Move item between boards
-      --note, -n         Create note
+      --note, -n         Create note (opens editor if no description)
       --priority, -p     Update priority of task
       --restore, -r      Restore items from archive
       --star, -s         Star/unstar item
@@ -114,6 +116,10 @@ struct Cli {
     /// Edit item description
     #[arg(short = 'e', long)]
     edit: bool,
+
+    /// Edit note in external editor
+    #[arg(long)]
+    edit_note: bool,
 
     /// Search for items
     #[arg(short = 'f', long)]
@@ -265,6 +271,7 @@ fn main() {
         || cli.delete
         || cli.restore
         || cli.edit
+        || cli.edit_note
         || cli.r#move
         || cli.priority
         || cli.copy
@@ -300,6 +307,7 @@ fn main() {
             cli.find,
             cli.list,
             cli.edit,
+            cli.edit_note,
             cli.r#move,
             cli.clear,
             cli.taskbook_dir,

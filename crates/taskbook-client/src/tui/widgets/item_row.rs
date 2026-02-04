@@ -76,6 +76,11 @@ pub fn render_item_line(
     };
     spans.push(Span::styled(desc, desc_style));
 
+    // Note body indicator
+    if item.note_has_body() {
+        spans.push(Span::styled(" [...]", app.theme.muted));
+    }
+
     // Boards (for timeline view)
     if options.show_boards {
         let boards: Vec<String> = item

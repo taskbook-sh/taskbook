@@ -8,6 +8,7 @@ use crate::directory::resolve_taskbook_directory;
 use crate::error::{Result, TaskbookError};
 use crate::render::{Render, Stats};
 use crate::storage::{LocalStorage, RemoteStorage, StorageBackend};
+use crate::editor;
 use taskbook_common::board::{self, DEFAULT_BOARD};
 use taskbook_common::{Note, StorageItem, Task};
 
@@ -349,6 +350,40 @@ impl Taskbook {
         Ok(id)
     }
 
+    /// Create a note with title and body (for TUI)
+    pub fn create_note_with_body_direct(
+        &self,
+        boards: Vec<String>,
+        title: String,
+        body: Option<String>,
+    ) -> Result<u64> {
+        if title.is_empty() {
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        let mut data = self.get_data()?;
+        let id = self.generate_id(&data);
+        let note = Note::new_with_body(id, title, body, boards);
+        data.insert(id.to_string(), StorageItem::Note(note));
+        self.save(&data)?;
+        Ok(id)
+    }
+
+    /// Edit note body without CLI output (for TUI)
+    pub fn edit_note_body_silent(&self, id: u64, body: Option<String>) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+        self.validate_ids_silent(&[id], &existing_ids)?;
+
+        if let Some(item) = data.get_mut(&id.to_string()) {
+            if !item.set_note_body(body) {
+                return Err(TaskbookError::General("Item is not a note".to_string()));
+            }
+        }
+
+        self.save(&data)
+    }
+
     /// Check tasks without CLI output (for TUI)
     pub fn check_tasks_silent(&self, ids: &[u64]) -> Result<()> {
         let mut data = self.get_data()?;
@@ -578,6 +613,86 @@ impl Taskbook {
         self.save(&data)?;
         self.render.success_create(id, false);
         Ok(())
+    }
+
+    /// Create a note using external editor
+    pub fn create_note_with_editor(&self) -> Result<()> {
+        let content = editor::create_note_in_editor()?;
+
+        match content {
+            Some(note_content) => {
+                let mut data = self.get_data()?;
+                let id = self.generate_id(&data);
+                let note = Note::new_with_body(
+                    id,
+                    note_content.title,
+                    note_content.body,
+                    vec![DEFAULT_BOARD.to_string()],
+                );
+                data.insert(id.to_string(), StorageItem::Note(note));
+                self.save(&data)?;
+                self.render.success_create(id, false);
+                Ok(())
+            }
+            None => {
+                self.render.note_cancelled();
+                Ok(())
+            }
+        }
+    }
+
+    /// Edit an existing note in external editor
+    pub fn edit_note_in_editor(&self, input: &[String]) -> Result<()> {
+        // Parse the ID from input (format: @<id>)
+        let targets: Vec<&String> = input.iter().filter(|x| x.starts_with('@')).collect();
+
+        if targets.is_empty() {
+            self.render.missing_id();
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        if targets.len() > 1 {
+            self.render.invalid_ids_number();
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        let target = targets[0];
+        let id_str = target.trim_start_matches('@');
+        let id: u64 = id_str.parse().map_err(|_| TaskbookError::InvalidId(0))?;
+
+        let data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+        let validated_ids = self.validate_ids(&[id], &existing_ids)?;
+        let id = validated_ids[0];
+
+        // Get the current note
+        let item = data
+            .get(&id.to_string())
+            .ok_or(TaskbookError::InvalidId(id))?;
+
+        let note = item
+            .as_note()
+            .ok_or_else(|| TaskbookError::General("Item is not a note".to_string()))?;
+
+        // Open editor with current content
+        let content = editor::edit_existing_note_in_editor(note.title(), note.body())?;
+
+        match content {
+            Some(note_content) => {
+                let mut data = self.get_data()?;
+                if let Some(item) = data.get_mut(&id.to_string()) {
+                    item.set_description(note_content.title);
+                    item.set_note_body(note_content.body);
+                }
+                self.save(&data)?;
+                self.render.success_edit(id);
+                Ok(())
+            }
+            None => {
+                self.render.note_cancelled();
+                Ok(())
+            }
+        }
     }
 
     pub fn create_task(&self, desc: &[String]) -> Result<()> {

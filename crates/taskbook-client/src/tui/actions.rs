@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
+use crate::editor;
 use crate::error::Result;
 use taskbook_common::board;
 
@@ -32,12 +33,27 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         KeyCode::Char('g') => app.select_first(),
         KeyCode::Char('G') => app.select_last(),
 
-        // Enter to filter by board (in board view)
-        KeyCode::Enter if app.view == ViewMode::Board && app.filter.board_filter.is_none() => {
-            if let Some(board_name) = app.get_board_for_selected() {
-                let display = board::display_name(&board_name);
-                app.set_board_filter(Some(board_name));
-                app.set_status(format!("Filtering by {}", display), StatusKind::Info);
+        // Enter to open note in editor or filter by board
+        KeyCode::Enter => {
+            if let Some(item) = app.selected_item() {
+                if !item.is_task() {
+                    // It's a note - open in external editor
+                    edit_note_external(app, item.id())?;
+                } else if app.view == ViewMode::Board && app.filter.board_filter.is_none() {
+                    // It's a task in board view without filter - filter by board
+                    if let Some(board_name) = app.get_board_for_selected() {
+                        let display = board::display_name(&board_name);
+                        app.set_board_filter(Some(board_name));
+                        app.set_status(format!("Filtering by {}", display), StatusKind::Info);
+                    }
+                }
+            } else if app.view == ViewMode::Board && app.filter.board_filter.is_none() {
+                // No item selected but might have board to filter
+                if let Some(board_name) = app.get_board_for_selected() {
+                    let display = board::display_name(&board_name);
+                    app.set_board_filter(Some(board_name));
+                    app.set_status(format!("Filtering by {}", display), StatusKind::Info);
+                }
             }
         }
 
@@ -634,5 +650,43 @@ fn rename_board(app: &mut App, old_name: &str, new_name: &str) -> Result<()> {
         ),
         StatusKind::Success,
     );
+    Ok(())
+}
+
+fn edit_note_external(app: &mut App, id: u64) -> Result<()> {
+    let item = app.items.get(&id.to_string());
+    let note = match item.and_then(|i| i.as_note()) {
+        Some(n) => n,
+        None => {
+            app.set_status("Item is not a note".to_string(), StatusKind::Error);
+            return Ok(());
+        }
+    };
+
+    let title = note.title().to_string();
+    let body = note.body().map(|s| s.to_string());
+
+    // Suspend TUI to run external editor
+    let guard = super::suspend_tui()?;
+
+    // Open external editor
+    let content = editor::edit_existing_note_in_editor(&title, body.as_deref());
+
+    // Resume TUI (this also happens on drop, but explicit is clearer)
+    guard.resume()?;
+
+    match content? {
+        Some(note_content) => {
+            // Update both title and body
+            app.taskbook.edit_description_silent(id, &note_content.title)?;
+            app.taskbook.edit_note_body_silent(id, note_content.body)?;
+            app.refresh_items()?;
+            app.set_status(format!("Updated note {}", id), StatusKind::Success);
+        }
+        None => {
+            app.set_status("Edit cancelled".to_string(), StatusKind::Info);
+        }
+    }
+
     Ok(())
 }

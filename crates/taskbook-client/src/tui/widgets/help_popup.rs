@@ -110,7 +110,7 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
         ]),
         Line::from(vec![
             Span::styled("    Enter   ", key_style),
-            Span::styled("Filter by board", desc_style),
+            Span::styled("Filter board / Edit note", desc_style),
         ]),
         Line::from(""),
         Line::from(Span::styled("        Press any key to close", desc_style)),

@@ -30,6 +30,7 @@ pub fn run(
     find: bool,
     list: bool,
     edit: bool,
+    edit_note: bool,
     r#move: bool,
     clear: bool,
     taskbook_dir: Option<PathBuf>,
@@ -50,7 +51,15 @@ pub fn run(
     }
 
     if note {
+        // If no description provided, open external editor
+        if input.is_empty() {
+            return taskbook.create_note_with_editor();
+        }
         return taskbook.create_note(&input);
+    }
+
+    if edit_note {
+        return taskbook.edit_note_in_editor(&input);
     }
 
     if delete {

@@ -174,7 +174,13 @@ impl Render {
                 description.to_string()
             }
         } else {
-            item.description().to_string()
+            // Note: add [+] indicator if note has body content
+            let description = item.description();
+            if item.note_has_body() {
+                format!("{} {}", description, self.muted("[+]"))
+            } else {
+                description.to_string()
+            }
         }
     }
 
@@ -493,5 +499,9 @@ impl Render {
             self.success("✔"),
             self.muted(&self.format_ids(ids))
         );
+    }
+
+    pub fn note_cancelled(&self) {
+        println!("\n {} Note creation cancelled", self.muted("○"));
     }
 }

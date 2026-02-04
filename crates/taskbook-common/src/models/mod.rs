@@ -105,4 +105,38 @@ impl StorageItem {
             StorageItem::Note(n) => Some(n),
         }
     }
+
+    pub fn as_note_mut(&mut self) -> Option<&mut Note> {
+        match self {
+            StorageItem::Task(_) => None,
+            StorageItem::Note(n) => Some(n),
+        }
+    }
+
+    /// Set the note body content. Returns false if item is not a note.
+    pub fn set_note_body(&mut self, body: Option<String>) -> bool {
+        match self {
+            StorageItem::Note(n) => {
+                n.set_body(body);
+                true
+            }
+            StorageItem::Task(_) => false,
+        }
+    }
+
+    /// Get the note body content, if this is a note with body
+    pub fn note_body(&self) -> Option<&str> {
+        match self {
+            StorageItem::Note(n) => n.body(),
+            StorageItem::Task(_) => None,
+        }
+    }
+
+    /// Check if this note has body content
+    pub fn note_has_body(&self) -> bool {
+        match self {
+            StorageItem::Note(n) => n.has_body(),
+            StorageItem::Task(_) => false,
+        }
+    }
 }
