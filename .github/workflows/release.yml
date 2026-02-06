@@ -107,6 +107,7 @@ jobs:
           path: ${{ matrix.name }}.tar.gz
 
   docker-server:
+    needs: [build-server]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -115,8 +116,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Download server binary (x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: tb-server-linux-x86_64
+          path: artifacts
+
+      - name: Download server binary (aarch64)
+        uses: actions/download-artifact@v4
+        with:
+          name: tb-server-linux-aarch64
+          path: artifacts
+
+      - name: Extract binaries
+        run: |
+          mkdir -p binaries/amd64 binaries/arm64
+          tar xzf artifacts/tb-server-linux-x86_64.tar.gz -C binaries/amd64
+          tar xzf artifacts/tb-server-linux-aarch64.tar.gz -C binaries/arm64
+          chmod +x binaries/amd64/tb-server binaries/arm64/tb-server
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -152,6 +169,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   docker-client:
+    needs: [build-client]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -160,8 +178,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Download client binary (x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: tb-linux-x86_64
+          path: artifacts
+
+      - name: Download client binary (aarch64)
+        uses: actions/download-artifact@v4
+        with:
+          name: tb-linux-aarch64
+          path: artifacts
+
+      - name: Extract binaries
+        run: |
+          mkdir -p binaries/amd64 binaries/arm64
+          tar xzf artifacts/tb-linux-x86_64.tar.gz -C binaries/amd64
+          tar xzf artifacts/tb-linux-aarch64.tar.gz -C binaries/arm64
+          chmod +x binaries/amd64/tb binaries/arm64/tb
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
