@@ -678,7 +678,8 @@ fn edit_note_external(app: &mut App, id: u64) -> Result<()> {
     match content? {
         Some(note_content) => {
             // Update both title and body
-            app.taskbook.edit_description_silent(id, &note_content.title)?;
+            app.taskbook
+                .edit_description_silent(id, &note_content.title)?;
             app.taskbook.edit_note_body_silent(id, note_content.body)?;
             app.refresh_items()?;
             app.set_status(format!("Updated note {}", id), StatusKind::Success);

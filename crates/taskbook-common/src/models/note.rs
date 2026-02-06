@@ -194,7 +194,8 @@ mod tests {
             "boards": ["My Board"]
         }"#;
 
-        let note: Note = serde_json::from_str(json).expect("Failed to deserialize note without body");
+        let note: Note =
+            serde_json::from_str(json).expect("Failed to deserialize note without body");
         assert_eq!(note.id, 1);
         assert_eq!(note.description, "Old note");
         assert!(note.body.is_none());

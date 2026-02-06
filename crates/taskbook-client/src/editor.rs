@@ -62,7 +62,9 @@ pub fn edit_in_external_editor(initial_content: &str) -> Result<Option<NoteConte
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .map_err(|e| TaskbookError::General(format!("Failed to launch editor '{}': {}", editor, e)))?;
+        .map_err(|e| {
+            TaskbookError::General(format!("Failed to launch editor '{}': {}", editor, e))
+        })?;
 
     if !status.success() {
         // Clean up temp file
@@ -89,7 +91,10 @@ pub fn create_note_in_editor() -> Result<Option<NoteContent>> {
 }
 
 /// Open editor for editing an existing note
-pub fn edit_existing_note_in_editor(title: &str, body: Option<&str>) -> Result<Option<NoteContent>> {
+pub fn edit_existing_note_in_editor(
+    title: &str,
+    body: Option<&str>,
+) -> Result<Option<NoteContent>> {
     let mut content = String::new();
     content.push_str(title);
     content.push('\n');
@@ -203,12 +208,16 @@ mod tests {
         let content = "My title\n\nThis is the body.\nSecond line of body.";
         let result = parse_note_content(content).unwrap().unwrap();
         assert_eq!(result.title, "My title");
-        assert_eq!(result.body.as_deref(), Some("This is the body.\nSecond line of body."));
+        assert_eq!(
+            result.body.as_deref(),
+            Some("This is the body.\nSecond line of body.")
+        );
     }
 
     #[test]
     fn test_parse_title_and_body_with_comments() {
-        let content = "# Header comment\nMy title\n\nBody line 1\n# Comment in body (skipped)\nBody line 2\n";
+        let content =
+            "# Header comment\nMy title\n\nBody line 1\n# Comment in body (skipped)\nBody line 2\n";
         let result = parse_note_content(content).unwrap().unwrap();
         assert_eq!(result.title, "My title");
         // Note: comments within the body section are included in body_lines collection
@@ -221,6 +230,9 @@ mod tests {
         let content = "Title\n\n  Indented line\n    More indented";
         let result = parse_note_content(content).unwrap().unwrap();
         assert_eq!(result.title, "Title");
-        assert_eq!(result.body.as_deref(), Some("  Indented line\n    More indented"));
+        assert_eq!(
+            result.body.as_deref(),
+            Some("  Indented line\n    More indented")
+        );
     }
 }

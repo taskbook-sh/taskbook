@@ -5,10 +5,10 @@ use arboard::Clipboard;
 
 use crate::config::Config;
 use crate::directory::resolve_taskbook_directory;
+use crate::editor;
 use crate::error::{Result, TaskbookError};
 use crate::render::{Render, Stats};
 use crate::storage::{LocalStorage, RemoteStorage, StorageBackend};
-use crate::editor;
 use taskbook_common::board::{self, DEFAULT_BOARD};
 use taskbook_common::{Note, StorageItem, Task};
 

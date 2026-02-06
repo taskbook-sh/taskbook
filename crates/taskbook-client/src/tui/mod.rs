@@ -29,12 +29,10 @@ pub fn suspend_tui() -> Result<TuiSuspendGuard> {
     let mut stdout = io::stdout();
 
     // Disable mouse capture first (while still in raw mode)
-    execute!(stdout, DisableMouseCapture)
-        .map_err(|e| TaskbookError::Tui(e.to_string()))?;
+    execute!(stdout, DisableMouseCapture).map_err(|e| TaskbookError::Tui(e.to_string()))?;
 
     // Leave alternate screen
-    execute!(stdout, LeaveAlternateScreen)
-        .map_err(|e| TaskbookError::Tui(e.to_string()))?;
+    execute!(stdout, LeaveAlternateScreen).map_err(|e| TaskbookError::Tui(e.to_string()))?;
 
     // Disable raw mode
     disable_raw_mode().map_err(|e| TaskbookError::Tui(e.to_string()))?;
@@ -66,8 +64,13 @@ impl TuiSuspendGuard {
     fn do_resume(&self) -> Result<()> {
         let mut stdout = io::stdout();
         enable_raw_mode().map_err(|e| TaskbookError::Tui(e.to_string()))?;
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture, cursor::Hide)
-            .map_err(|e| TaskbookError::Tui(e.to_string()))?;
+        execute!(
+            stdout,
+            EnterAlternateScreen,
+            EnableMouseCapture,
+            cursor::Hide
+        )
+        .map_err(|e| TaskbookError::Tui(e.to_string()))?;
         stdout.flush().ok();
 
         // Resume the event handler thread
