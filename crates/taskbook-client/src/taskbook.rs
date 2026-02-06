@@ -351,6 +351,7 @@ impl Taskbook {
     }
 
     /// Create a note with title and body (for TUI)
+    #[allow(dead_code)]
     pub fn create_note_with_body_direct(
         &self,
         boards: Vec<String>,
