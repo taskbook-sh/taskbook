@@ -2,33 +2,30 @@
 
 A Rust port of [taskbook](https://github.com/klaussinani/taskbook) - tasks, boards & notes for the command-line habitat.
 
+## Features
+
+- Create and manage tasks and notes organized into boards
+- Priority levels and progress tracking
+- Timeline and archive views
+- Customizable themes (including Catppuccin)
+- **Optional server sync** with end-to-end encryption (AES-256-GCM)
+
 ## Installation
 
 Download the latest binary from [releases](https://github.com/alexanderdavidsen/taskbook-rs/releases) or build from source:
 
 ```bash
-cargo install --path .
+cargo install --path crates/taskbook-client
 ```
 
 ### Nix Flake
 
-Add to your system flake:
-
 ```nix
 {
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    taskbook-rs.url = "github:alexanderdavidsen/taskbook-rs";
-  };
+  inputs.taskbook-rs.url = "github:alexanderdavidsen/taskbook-rs";
 
-  outputs = { nixpkgs, taskbook-rs, ... }: {
-    darwinConfigurations.myhost = darwin.lib.darwinSystem {
-      modules = [{
-        nixpkgs.overlays = [ taskbook-rs.overlays.default ];
-        environment.systemPackages = with pkgs; [ taskbook-rs ];
-      }];
-    };
-  };
+  # Add to your packages
+  environment.systemPackages = [ inputs.taskbook-rs.packages.${system}.default ];
 }
 ```
 
@@ -56,66 +53,64 @@ tb --clear                  # Delete all completed tasks
 tb --copy <id> [id...]      # Copy descriptions to clipboard
 ```
 
+## Server Sync
+
+Optionally sync your tasks across devices with encrypted server storage:
+
+```bash
+# Register an account (interactive)
+tb --register
+
+# Migrate existing local data to server
+tb --migrate
+
+# On another device, login with your encryption key
+tb --login
+
+# Check sync status
+tb --status
+
+# Logout and return to local-only mode
+tb --logout
+```
+
+All data is encrypted client-side with AES-256-GCM before being sent to the server. Your encryption key is generated locally during registration and never leaves your device.
+
+See [Server Setup](docs/server.md) for running your own server.
+
 ## Configuration
 
-Configuration is stored in `~/.taskbook.json`. Example:
+Configuration is stored in `~/.taskbook.json`:
 
 ```json
 {
   "taskbookDirectory": "~",
   "displayCompleteTasks": true,
   "displayProgressOverview": true,
-  "theme": "catppuccin-macchiato"
-}
-```
-
-### Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `taskbookDirectory` | Directory for storing taskbook data | `~` (creates `~/.taskbook/`) |
-| `displayCompleteTasks` | Show completed tasks in board view | `true` |
-| `displayProgressOverview` | Show progress statistics | `true` |
-| `theme` | Color theme (preset name or custom colors) | `"default"` |
-
-### Themes
-
-Available preset themes:
-
-- `default` - Neutral gray, works on most terminals
-- `catppuccin-macchiato` - [Catppuccin](https://catppuccin.com/) Macchiato variant
-- `catppuccin-mocha` - Catppuccin Mocha (darkest)
-- `catppuccin-frappe` - Catppuccin Frappé (medium)
-- `catppuccin-latte` - Catppuccin Latte (light)
-- `high-contrast` - High contrast for accessibility
-
-#### Custom Theme
-
-You can define custom RGB colors for each element:
-
-```json
-{
-  "theme": {
-    "muted": { "r": 165, "g": 173, "b": 203 },
-    "success": { "r": 166, "g": 218, "b": 149 },
-    "warning": { "r": 238, "g": 212, "b": 159 },
-    "error": { "r": 237, "g": 135, "b": 150 },
-    "info": { "r": 138, "g": 173, "b": 244 },
-    "pending": { "r": 198, "g": 160, "b": 246 },
-    "starred": { "r": 238, "g": 212, "b": 159 }
+  "theme": "catppuccin-macchiato",
+  "sync": {
+    "enabled": false,
+    "serverUrl": "http://localhost:8080"
   }
 }
 ```
 
-| Color | Used For |
-|-------|----------|
-| `muted` | Secondary text (IDs, labels, completed tasks) |
-| `success` | Checkmarks, completed counts, normal priority |
-| `warning` | In-progress indicators, medium priority |
-| `error` | Error messages, high priority |
-| `info` | Notes, in-progress counts |
-| `pending` | Pending task icons and counts |
-| `starred` | Star indicators |
+### Themes
+
+Available preset themes: `default`, `catppuccin-macchiato`, `catppuccin-mocha`, `catppuccin-frappe`, `catppuccin-latte`, `high-contrast`
+
+Or define custom RGB colors - see [Configuration docs](docs/configuration.md).
+
+## Documentation
+
+See the [docs](docs/) folder for detailed documentation:
+
+- [Installation](docs/installation.md)
+- [CLI Reference](docs/cli-reference.md)
+- [Configuration](docs/configuration.md)
+- [Server Setup](docs/server.md)
+- [Sync & Encryption](docs/sync.md)
+- [Kubernetes Deployment](docs/kubernetes.md)
 
 ## Data Compatibility
 

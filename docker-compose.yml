@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: taskbook
+      POSTGRES_PASSWORD: taskbook
+      POSTGRES_DB: taskbook
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskbook"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    environment:
+      TB_HOST: "0.0.0.0"
+      TB_PORT: "8080"
+      TB_DB_HOST: postgres
+      TB_DB_PORT: "5432"
+      TB_DB_NAME: taskbook
+      TB_DB_USER: taskbook
+      TB_DB_PASSWORD: taskbook
+      TB_SESSION_EXPIRY_DAYS: "30"
+      RUST_LOG: "info"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    volumes:
+      - client_data:/root/.taskbook
+    depends_on:
+      - server
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+  client_data:
