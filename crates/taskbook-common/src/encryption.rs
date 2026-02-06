@@ -39,17 +39,17 @@ pub fn encrypt_item(key: &[u8; 32], item: &StorageItem) -> Result<EncryptedItem,
 /// Decrypt an `EncryptedItem` back into a `StorageItem` using AES-256-GCM.
 pub fn decrypt_item(key: &[u8; 32], encrypted: &EncryptedItem) -> Result<StorageItem, CommonError> {
     if encrypted.nonce.len() != 12 {
-        return Err(CommonError::Encryption(format!(
-            "invalid nonce length: expected 12, got {}",
-            encrypted.nonce.len()
-        )));
+        return Err(CommonError::InvalidNonce {
+            expected: 12,
+            got: encrypted.nonce.len(),
+        });
     }
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce = Nonce::from_slice(&encrypted.nonce);
     let plaintext = cipher
         .decrypt(nonce, encrypted.data.as_ref())
-        .map_err(|e| CommonError::Encryption(e.to_string()))?;
+        .map_err(|_| CommonError::DecryptionFailed)?;
 
     let item: StorageItem = serde_json::from_slice(&plaintext).map_err(CommonError::Json)?;
     Ok(item)

@@ -94,6 +94,9 @@ pub async fn put_archive(
     replace_items(&state.pool, auth.user_id, true, &req.items).await
 }
 
+/// Maximum number of items a user can store per category (active or archived).
+const MAX_ITEMS_PER_CATEGORY: usize = 10_000;
+
 /// Replace all items for a user (active or archived) with the provided set.
 async fn replace_items(
     pool: &sqlx::PgPool,
@@ -102,6 +105,34 @@ async fn replace_items(
     items: &HashMap<String, EncryptedItemData>,
 ) -> Result<()> {
     use base64::Engine;
+
+    if items.len() > MAX_ITEMS_PER_CATEGORY {
+        return Err(ServerError::Validation(format!(
+            "too many items: maximum is {MAX_ITEMS_PER_CATEGORY}, got {}",
+            items.len()
+        )));
+    }
+
+    // Validate individual item sizes
+    for (key, item) in items {
+        if key.len() > 64 {
+            return Err(ServerError::Validation(
+                "item key must be at most 64 characters".to_string(),
+            ));
+        }
+        // Base64-decoded nonce should be 12 bytes (16 chars in base64)
+        if item.nonce.len() > 24 {
+            return Err(ServerError::Validation(
+                "invalid nonce size".to_string(),
+            ));
+        }
+        // Limit individual item data to 1 MB (base64-encoded)
+        if item.data.len() > 1_400_000 {
+            return Err(ServerError::Validation(
+                "item data too large".to_string(),
+            ));
+        }
+    }
 
     let mut tx = pool.begin().await.map_err(ServerError::Database)?;
 

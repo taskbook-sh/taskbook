@@ -1,6 +1,10 @@
-use axum::extract::State;
+use std::net::SocketAddr;
+
+use axum::extract::{ConnectInfo, State};
 use axum::Json;
+use base64::Engine;
 use chrono::{Duration, Utc};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -41,19 +45,16 @@ pub struct MeResponse {
 
 pub async fn register(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<RegisterRequest>,
 ) -> Result<Json<RegisterResponse>> {
-    if req.username.is_empty() || req.password.is_empty() || req.email.is_empty() {
-        return Err(ServerError::Validation(
-            "username, email, and password are required".to_string(),
-        ));
+    // Rate limit check
+    if !state.auth_rate_limiter.check(addr.ip()).await {
+        tracing::warn!(ip = %addr.ip(), "register rate limited");
+        return Err(ServerError::RateLimited);
     }
 
-    if req.password.len() < 8 {
-        return Err(ServerError::Validation(
-            "password must be at least 8 characters".to_string(),
-        ));
-    }
+    validate_registration(&req)?;
 
     let password_hash = hash_password(&req.password)
         .map_err(|e| ServerError::Internal(format!("password hashing failed: {e}")))?;
@@ -75,13 +76,22 @@ pub async fn register(
 
     let token = create_session(&state.pool, user_id, state.session_expiry_days).await?;
 
+    tracing::info!(username = %req.username, "user registered");
+
     Ok(Json(RegisterResponse { token }))
 }
 
 pub async fn login(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>> {
+    // Rate limit check
+    if !state.auth_rate_limiter.check(addr.ip()).await {
+        tracing::warn!(ip = %addr.ip(), "login rate limited");
+        return Err(ServerError::RateLimited);
+    }
+
     let user =
         sqlx::query_as::<_, (Uuid, String)>("SELECT id, password FROM users WHERE username = $1")
             .bind(&req.username)
@@ -96,10 +106,13 @@ pub async fn login(
         .map_err(|e| ServerError::Internal(format!("password verification failed: {e}")))?;
 
     if !valid {
+        tracing::warn!(username = %req.username, "failed login attempt");
         return Err(ServerError::InvalidCredentials);
     }
 
     let token = create_session(&state.pool, user_id, state.session_expiry_days).await?;
+
+    tracing::info!(username = %req.username, "user logged in");
 
     Ok(Json(LoginResponse { token }))
 }
@@ -110,6 +123,8 @@ pub async fn logout(State(state): State<AppState>, auth: AuthUser) -> Result<()>
         .execute(&state.pool)
         .await
         .map_err(ServerError::Database)?;
+
+    tracing::info!(user_id = %auth.user_id, "user logged out");
 
     Ok(())
 }
@@ -128,8 +143,11 @@ pub async fn me(State(state): State<AppState>, auth: AuthUser) -> Result<Json<Me
     }))
 }
 
+/// Generate a cryptographically random 256-bit session token.
 async fn create_session(pool: &PgPool, user_id: Uuid, expiry_days: i64) -> Result<String> {
-    let token = Uuid::new_v4().to_string();
+    let mut token_bytes = [0u8; 32];
+    rand::thread_rng().fill(&mut token_bytes);
+    let token = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(token_bytes);
     let expires_at = Utc::now() + Duration::days(expiry_days);
 
     sqlx::query("INSERT INTO sessions (user_id, token, expires_at) VALUES ($1, $2, $3)")
@@ -141,4 +159,56 @@ async fn create_session(pool: &PgPool, user_id: Uuid, expiry_days: i64) -> Resul
         .map_err(ServerError::Database)?;
 
     Ok(token)
+}
+
+/// Validate registration input fields.
+fn validate_registration(req: &RegisterRequest) -> Result<()> {
+    if req.username.is_empty() || req.password.is_empty() || req.email.is_empty() {
+        return Err(ServerError::Validation(
+            "username, email, and password are required".to_string(),
+        ));
+    }
+
+    if req.username.len() > 64 {
+        return Err(ServerError::Validation(
+            "username must be at most 64 characters".to_string(),
+        ));
+    }
+
+    if !req
+        .username
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(ServerError::Validation(
+            "username must contain only alphanumeric characters, hyphens, or underscores"
+                .to_string(),
+        ));
+    }
+
+    if req.email.len() > 255 {
+        return Err(ServerError::Validation(
+            "email must be at most 255 characters".to_string(),
+        ));
+    }
+
+    if !req.email.contains('@') || !req.email.contains('.') {
+        return Err(ServerError::Validation(
+            "email must be a valid email address".to_string(),
+        ));
+    }
+
+    if req.password.len() < 8 {
+        return Err(ServerError::Validation(
+            "password must be at least 8 characters".to_string(),
+        ));
+    }
+
+    if req.password.len() > 1024 {
+        return Err(ServerError::Validation(
+            "password must be at most 1024 characters".to_string(),
+        ));
+    }
+
+    Ok(())
 }

@@ -53,7 +53,9 @@ pub fn parse_cli_input(input: &[String]) -> (Vec<String>, String, u8) {
 
     for word in input {
         if is_priority_opt(word) {
-            priority = word.chars().last().unwrap().to_digit(10).unwrap() as u8;
+            if let Some(p) = word.chars().last().and_then(|c| c.to_digit(10)) {
+                priority = p as u8;
+            }
         } else if word.starts_with('@') && word.len() > 1 {
             boards.push(normalize_board_name(word));
         } else {
