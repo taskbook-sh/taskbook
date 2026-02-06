@@ -62,10 +62,7 @@ fn build_cors_layer(origins: &[String]) -> CorsLayer {
             "https://localhost",
         )))
     } else {
-        let parsed: Vec<HeaderValue> = origins
-            .iter()
-            .filter_map(|o| o.parse().ok())
-            .collect();
+        let parsed: Vec<HeaderValue> = origins.iter().filter_map(|o| o.parse().ok()).collect();
         cors.allow_origin(AllowOrigin::list(parsed))
     }
 }

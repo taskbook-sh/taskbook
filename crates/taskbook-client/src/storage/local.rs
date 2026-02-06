@@ -101,11 +101,7 @@ impl LocalStorage {
         Ok(data)
     }
 
-    fn write_json_file(
-        &self,
-        path: &Path,
-        data: &HashMap<String, StorageItem>,
-    ) -> Result<()> {
+    fn write_json_file(&self, path: &Path, data: &HashMap<String, StorageItem>) -> Result<()> {
         let json = serde_json::to_string_pretty(data)?;
         let temp_file = self.get_temp_file(path);
         fs::write(&temp_file, json)?;

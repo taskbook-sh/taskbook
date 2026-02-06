@@ -45,9 +45,10 @@ impl IntoResponse for ServerError {
                 tracing::error!(error = %e, "internal error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
             }
-            ServerError::RateLimited => {
-                (StatusCode::TOO_MANY_REQUESTS, "too many requests, try again later")
-            }
+            ServerError::RateLimited => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many requests, try again later",
+            ),
         };
 
         (status, Json(json!({ "error": message }))).into_response()

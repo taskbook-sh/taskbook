@@ -122,15 +122,11 @@ async fn replace_items(
         }
         // Base64-decoded nonce should be 12 bytes (16 chars in base64)
         if item.nonce.len() > 24 {
-            return Err(ServerError::Validation(
-                "invalid nonce size".to_string(),
-            ));
+            return Err(ServerError::Validation("invalid nonce size".to_string()));
         }
         // Limit individual item data to 1 MB (base64-encoded)
         if item.data.len() > 1_400_000 {
-            return Err(ServerError::Validation(
-                "item data too large".to_string(),
-            ));
+            return Err(ServerError::Validation("item data too large".to_string()));
         }
     }
 
