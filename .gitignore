@@ -16,6 +16,9 @@ devenv.lock
 *.swp
 *.swo
 .claude
+# Kubernetes deployment (local only)
+k8s/
+
 # OS
 .DS_Store
 result
