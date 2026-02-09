@@ -1,7 +1,7 @@
 final: prev: {
   taskbook-rs = final.rustPlatform.buildRustPackage {
     pname = "taskbook-rs";
-    version = "0.4.0";
+    version = "1.0.5";
 
     src = ./.;
 
