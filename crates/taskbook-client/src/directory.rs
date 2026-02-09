@@ -7,6 +7,11 @@ use crate::error::{Result, TaskbookError};
 const TASKBOOK_DIR_NAME: &str = ".taskbook";
 const TASKBOOK_DIR_ENV: &str = "TASKBOOK_DIR";
 
+fn home_dir() -> Result<PathBuf> {
+    dirs::home_dir()
+        .ok_or_else(|| TaskbookError::General("could not find home directory".to_string()))
+}
+
 /// Resolve the taskbook directory with priority:
 /// 1. --taskbook-dir CLI flag (highest)
 /// 2. TASKBOOK_DIR environment variable
@@ -19,7 +24,7 @@ pub fn resolve_taskbook_directory(cli_taskbook_dir: Option<&Path>) -> Result<Pat
     }
 
     // Default to ~/.taskbook/
-    let home = dirs::home_dir().expect("Could not find home directory");
+    let home = home_dir()?;
     Ok(home.join(TASKBOOK_DIR_NAME))
 }
 
@@ -35,7 +40,9 @@ fn resolve_custom_directory(cli_taskbook_dir: Option<&Path>) -> Result<Option<Pa
 
     // Check if the candidate path ends with .taskbook
     if is_taskbook_directory_path(&resolved) {
-        let parent = resolved.parent().expect("Path has no parent");
+        let parent = resolved.parent().ok_or_else(|| {
+            TaskbookError::InvalidDirectory(format!("{candidate}: path has no parent"))
+        })?;
         assert_directory_exists(parent, &candidate)?;
         return Ok(Some(resolved));
     }
@@ -65,10 +72,7 @@ fn select_custom_directory_candidate(cli_taskbook_dir: Option<&Path>) -> Result<
     if let Ok(config) = Config::load() {
         let config_dir = &config.taskbook_directory;
         // Only use config dir if it's not the default home directory
-        let home = dirs::home_dir()
-            .expect("Could not find home directory")
-            .to_string_lossy()
-            .to_string();
+        let home = home_dir()?.to_string_lossy().to_string();
         if config_dir != &home && config_dir != "~" {
             return Ok(Some(config_dir.clone()));
         }
@@ -86,15 +90,12 @@ fn parse_directory(directory: &str) -> PathBuf {
 
 fn expand_directory(directory: &str) -> String {
     if directory.starts_with('~') {
-        let home = dirs::home_dir()
-            .expect("Could not find home directory")
-            .to_string_lossy()
-            .to_string();
-        let rest = directory.trim_start_matches('~');
-        format!("{}{}", home, rest)
-    } else {
-        directory.to_string()
+        if let Some(home) = dirs::home_dir() {
+            let rest = directory.trim_start_matches('~');
+            return format!("{}{}", home.to_string_lossy(), rest);
+        }
     }
+    directory.to_string()
 }
 
 fn is_taskbook_directory_path(path: &Path) -> bool {

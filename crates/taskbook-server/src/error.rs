@@ -23,21 +23,32 @@ pub enum ServerError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Rate limit exceeded")]
+    RateLimited,
 }
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
-            ServerError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error"),
-            ServerError::Unauthorized => (StatusCode::UNAUTHORIZED, "Authentication required"),
-            ServerError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "Invalid credentials"),
-            ServerError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
+            ServerError::Database(e) => {
+                tracing::error!(error = %e, "database error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "database error")
+            }
+            ServerError::Unauthorized => (StatusCode::UNAUTHORIZED, "authentication required"),
+            ServerError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "invalid credentials"),
+            ServerError::UserAlreadyExists => (StatusCode::CONFLICT, "user already exists"),
             ServerError::Validation(msg) => {
                 return (StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))).into_response();
             }
-            ServerError::Internal(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+            ServerError::Internal(e) => {
+                tracing::error!(error = %e, "internal error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
             }
+            ServerError::RateLimited => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many requests, try again later",
+            ),
         };
 
         (status, Json(json!({ "error": message }))).into_response()

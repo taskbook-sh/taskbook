@@ -15,16 +15,16 @@ pub struct Credentials {
 }
 
 impl Credentials {
-    fn credentials_path() -> PathBuf {
-        dirs::home_dir()
-            .expect("Could not find home directory")
-            .join(".taskbook")
-            .join("credentials.json")
+    fn credentials_path() -> Result<PathBuf> {
+        let home = dirs::home_dir().ok_or_else(|| {
+            crate::error::TaskbookError::General("could not find home directory".to_string())
+        })?;
+        Ok(home.join(".taskbook").join("credentials.json"))
     }
 
     /// Load credentials from disk. Returns None if the file doesn't exist.
     pub fn load() -> Result<Option<Self>> {
-        let path = Self::credentials_path();
+        let path = Self::credentials_path()?;
         if !path.exists() {
             return Ok(None);
         }
@@ -33,9 +33,9 @@ impl Credentials {
         Ok(Some(creds))
     }
 
-    /// Save credentials to disk.
+    /// Save credentials to disk with restrictive permissions (0600).
     pub fn save(&self) -> Result<()> {
-        let path = Self::credentials_path();
+        let path = Self::credentials_path()?;
         if let Some(parent) = path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)?;
@@ -43,12 +43,20 @@ impl Credentials {
         }
         let json = serde_json::to_string_pretty(self)?;
         fs::write(&path, json)?;
+
+        // Set file permissions to owner-only read/write (0600)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
+        }
+
         Ok(())
     }
 
     /// Delete the credentials file.
     pub fn delete() -> Result<()> {
-        let path = Self::credentials_path();
+        let path = Self::credentials_path()?;
         if path.exists() {
             fs::remove_file(&path)?;
         }

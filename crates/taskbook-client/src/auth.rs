@@ -6,18 +6,23 @@ use colored::Colorize;
 use crate::api_client::{ApiClient, LoginRequest, RegisterRequest};
 use crate::config::Config;
 use crate::credentials::Credentials;
-use crate::error::Result;
+use crate::error::{Result, TaskbookError};
 
-fn prompt(message: &str) -> String {
+fn prompt(message: &str) -> Result<String> {
     print!("{}", message);
-    io::stdout().flush().unwrap();
+    io::stdout()
+        .flush()
+        .map_err(|e| TaskbookError::General(format!("failed to flush stdout: {e}")))?;
     let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    input.trim().to_string()
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| TaskbookError::General(format!("failed to read input: {e}")))?;
+    Ok(input.trim().to_string())
 }
 
-fn prompt_password(message: &str) -> String {
-    rpassword::prompt_password(message).unwrap_or_default()
+fn prompt_password(message: &str) -> Result<String> {
+    rpassword::prompt_password(message)
+        .map_err(|e| TaskbookError::General(format!("failed to read password: {e}")))
 }
 
 /// Register a new account on the server (interactive).
@@ -32,27 +37,26 @@ pub fn register(
 
     let server = match server_url {
         Some(s) => s.to_string(),
-        None => prompt("Server URL: "),
+        None => prompt("Server URL: ")?,
     };
 
     let user = match username {
         Some(u) => u.to_string(),
-        None => prompt("Username: "),
+        None => prompt("Username: ")?,
     };
 
     let mail = match email {
         Some(e) => e.to_string(),
-        None => prompt("Email: "),
+        None => prompt("Email: ")?,
     };
 
     let pass = match password {
         Some(p) => p.to_string(),
         None => {
-            let p1 = prompt_password("Password: ");
-            let p2 = prompt_password("Confirm password: ");
+            let p1 = prompt_password("Password: ")?;
+            let p2 = prompt_password("Confirm password: ")?;
             if p1 != p2 {
-                eprintln!("{}", "Passwords do not match".red());
-                std::process::exit(1);
+                return Err(TaskbookError::Auth("passwords do not match".to_string()));
             }
             p1
         }
@@ -109,22 +113,22 @@ pub fn login(
 
     let server = match server_url {
         Some(s) => s.to_string(),
-        None => prompt("Server URL: "),
+        None => prompt("Server URL: ")?,
     };
 
     let user = match username {
         Some(u) => u.to_string(),
-        None => prompt("Username: "),
+        None => prompt("Username: ")?,
     };
 
     let pass = match password {
         Some(p) => p.to_string(),
-        None => prompt_password("Password: "),
+        None => prompt_password("Password: ")?,
     };
 
     let key = match encryption_key {
         Some(k) => k.to_string(),
-        None => prompt("Encryption key: "),
+        None => prompt("Encryption key: ")?,
     };
 
     let client = ApiClient::new(&server, None);

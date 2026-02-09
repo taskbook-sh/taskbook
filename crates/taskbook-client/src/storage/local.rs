@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
+use fs2::FileExt;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -9,7 +10,7 @@ use taskbook_common::StorageItem;
 
 use super::StorageBackend;
 
-/// Local file-based storage with atomic writes
+/// Local file-based storage with atomic writes and file locking
 pub struct LocalStorage {
     main_app_dir: PathBuf,
     storage_dir: PathBuf,
@@ -75,52 +76,58 @@ impl LocalStorage {
         let random_string = Uuid::new_v4().to_string()[..8].to_string();
         let filename = target_file
             .file_name()
-            .unwrap()
+            .unwrap_or_default()
             .to_string_lossy()
             .to_string();
         let temp_filename = filename.replace(".json", &format!(".TEMP-{}.json", random_string));
         self.temp_dir.join(temp_filename)
     }
+
+    /// Acquire an exclusive lock on the given file path.
+    /// Creates the lock file if it doesn't exist.
+    fn lock_file(&self, path: &Path) -> Result<File> {
+        let lock_path = path.with_extension("lock");
+        let lock_file = File::create(&lock_path)?;
+        lock_file.lock_exclusive()?;
+        Ok(lock_file)
+    }
+
+    fn read_json_file(&self, path: &Path) -> Result<HashMap<String, StorageItem>> {
+        if !path.exists() {
+            return Ok(HashMap::new());
+        }
+        let content = fs::read_to_string(path)?;
+        let data: HashMap<String, StorageItem> = serde_json::from_str(&content)?;
+        Ok(data)
+    }
+
+    fn write_json_file(&self, path: &Path, data: &HashMap<String, StorageItem>) -> Result<()> {
+        let json = serde_json::to_string_pretty(data)?;
+        let temp_file = self.get_temp_file(path);
+        fs::write(&temp_file, json)?;
+        fs::rename(&temp_file, path)?;
+        Ok(())
+    }
 }
 
 impl StorageBackend for LocalStorage {
     fn get(&self) -> Result<HashMap<String, StorageItem>> {
-        if !self.storage_file.exists() {
-            return Ok(HashMap::new());
-        }
-
-        let content = fs::read_to_string(&self.storage_file)?;
-        let data: HashMap<String, StorageItem> = serde_json::from_str(&content)?;
-        Ok(data)
+        let _lock = self.lock_file(&self.storage_file)?;
+        self.read_json_file(&self.storage_file)
     }
 
     fn get_archive(&self) -> Result<HashMap<String, StorageItem>> {
-        if !self.archive_file.exists() {
-            return Ok(HashMap::new());
-        }
-
-        let content = fs::read_to_string(&self.archive_file)?;
-        let data: HashMap<String, StorageItem> = serde_json::from_str(&content)?;
-        Ok(data)
+        let _lock = self.lock_file(&self.archive_file)?;
+        self.read_json_file(&self.archive_file)
     }
 
     fn set(&self, data: &HashMap<String, StorageItem>) -> Result<()> {
-        let json = serde_json::to_string_pretty(data)?;
-        let temp_file = self.get_temp_file(&self.storage_file);
-
-        fs::write(&temp_file, json)?;
-        fs::rename(&temp_file, &self.storage_file)?;
-
-        Ok(())
+        let _lock = self.lock_file(&self.storage_file)?;
+        self.write_json_file(&self.storage_file, data)
     }
 
     fn set_archive(&self, data: &HashMap<String, StorageItem>) -> Result<()> {
-        let json = serde_json::to_string_pretty(data)?;
-        let temp_file = self.get_temp_file(&self.archive_file);
-
-        fs::write(&temp_file, json)?;
-        fs::rename(&temp_file, &self.archive_file)?;
-
-        Ok(())
+        let _lock = self.lock_file(&self.archive_file)?;
+        self.write_json_file(&self.archive_file, data)
     }
 }

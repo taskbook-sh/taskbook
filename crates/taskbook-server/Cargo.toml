@@ -2,13 +2,14 @@
 name = "taskbook-server"
 version = "1.0.0"
 edition = "2021"
+rust-version = "1.75"
 description = "Server for taskbook-rs sync"
 license = "MIT"
 
 [dependencies]
 taskbook-common = { path = "../taskbook-common" }
 axum = "0.7"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -17,7 +18,8 @@ argon2 = "0.5"
 rand = "0.8"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower = { version = "0.4", features = ["limit"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "limit"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.22"
