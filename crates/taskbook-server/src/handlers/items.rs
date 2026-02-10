@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, ServerError};
 use crate::middleware::AuthUser;
-use crate::router::AppState;
+use crate::router::{AppState, SyncEvent};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct EncryptedItemData {
@@ -56,7 +56,11 @@ pub async fn put_items(
     auth: AuthUser,
     Json(req): Json<PutItemsRequest>,
 ) -> Result<()> {
-    replace_items(&state.pool, auth.user_id, false, &req.items).await
+    replace_items(&state.pool, auth.user_id, false, &req.items).await?;
+    state
+        .notifications
+        .notify(auth.user_id, SyncEvent::DataChanged { archived: false });
+    Ok(())
 }
 
 pub async fn get_archive(
@@ -91,7 +95,11 @@ pub async fn put_archive(
     auth: AuthUser,
     Json(req): Json<PutItemsRequest>,
 ) -> Result<()> {
-    replace_items(&state.pool, auth.user_id, true, &req.items).await
+    replace_items(&state.pool, auth.user_id, true, &req.items).await?;
+    state
+        .notifications
+        .notify(auth.user_id, SyncEvent::DataChanged { archived: true });
+    Ok(())
 }
 
 /// Maximum number of items a user can store per category (active or archived).

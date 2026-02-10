@@ -23,6 +23,8 @@ tower-http = { version = "0.5", features = ["cors", "trace", "limit"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.22"
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures-util = "0.3"
 
 [[bin]]
 name = "tb-server"

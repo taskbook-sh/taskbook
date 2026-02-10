@@ -6,6 +6,8 @@ mod theme;
 mod ui;
 pub mod widgets;
 
+use crate::config::Config;
+use crate::credentials::Credentials;
 use crate::error::{Result, TaskbookError};
 pub use app::App;
 
@@ -117,7 +119,7 @@ pub fn run(taskbook_dir: Option<&Path>) -> Result<()> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> {
-    let events = event::EventHandler::new(250);
+    let events = create_event_handler(&app.config);
 
     while app.running {
         terminal
@@ -132,8 +134,31 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> 
                 app.tick();
             }
             event::Event::Resize(_, _) => {}
+            event::Event::DataChanged { archived } => {
+                use app::ViewMode;
+                match (app.view, archived) {
+                    (ViewMode::Archive, true) => {
+                        app.items = app.taskbook.get_all_archive_items()?;
+                        app.update_display_order();
+                    }
+                    (ViewMode::Board | ViewMode::Timeline, false) => {
+                        app.refresh_items()?;
+                    }
+                    _ => {} // Data will be loaded when user switches views
+                }
+            }
         }
     }
 
     Ok(())
+}
+
+/// Create the appropriate event handler based on sync configuration.
+fn create_event_handler(config: &Config) -> event::EventHandler {
+    if config.sync.enabled {
+        if let Ok(Some(creds)) = Credentials::load() {
+            return event::EventHandler::new_with_sse(250, creds.server_url, creds.token);
+        }
+    }
+    event::EventHandler::new(250)
 }
