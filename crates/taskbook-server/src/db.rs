@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use sqlx::PgPool;
+use sqlx::{ConnectOptions, PgPool};
+use tracing::log::LevelFilter;
 
 /// Create a PostgreSQL connection pool with resilience settings.
 ///
@@ -9,7 +10,8 @@ use sqlx::PgPool;
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     let connect_options: PgConnectOptions = database_url
         .parse::<PgConnectOptions>()?
-        .extra_float_digits(None);
+        .extra_float_digits(None)
+        .log_slow_statements(LevelFilter::Warn, Duration::from_secs(5));
 
     PgPoolOptions::new()
         .max_connections(10)
