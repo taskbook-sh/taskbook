@@ -157,11 +157,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> 
 fn create_event_handler(config: &Config) -> event::EventHandler {
     if config.sync.enabled {
         if let Ok(Some(creds)) = Credentials::load() {
-            return event::EventHandler::new_with_sse(
-                250,
-                creds.server_url,
-                creds.token,
-            );
+            return event::EventHandler::new_with_sse(250, creds.server_url, creds.token);
         }
     }
     event::EventHandler::new(250)

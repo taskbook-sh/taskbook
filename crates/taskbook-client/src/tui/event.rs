@@ -150,10 +150,7 @@ fn spawn_sse_thread(
                             // End of SSE frame — dispatch event
                             if current_event == "data_changed" {
                                 let archived = current_data == "archive";
-                                if sender
-                                    .send(Event::DataChanged { archived })
-                                    .is_err()
-                                {
+                                if sender.send(Event::DataChanged { archived }).is_err() {
                                     return; // TUI closed
                                 }
                             }
