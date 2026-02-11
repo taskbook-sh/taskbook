@@ -6,7 +6,7 @@ The `tb` command-line tool is all you need for local task management.
 
 ### Pre-built Binaries
 
-Download the latest binary for your platform from [GitHub Releases](https://github.com/alexanderdavidsen/taskbook-rs/releases).
+Download the latest binary for your platform from [GitHub Releases](https://github.com/taskbook-sh/taskbook/releases).
 
 ### Build from Source
 
@@ -14,8 +14,8 @@ Requires Rust 1.70 or later.
 
 ```bash
 # Clone the repository
-git clone https://github.com/alexanderdavidsen/taskbook-rs.git
-cd taskbook-rs
+git clone https://github.com/taskbook-sh/taskbook.git
+cd taskbook
 
 # Build release binary
 cargo build --release
@@ -33,31 +33,31 @@ Add to your system flake:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    taskbook-rs.url = "github:alexanderdavidsen/taskbook-rs";
+    taskbook.url = "github:taskbook-sh/taskbook";
   };
 
-  outputs = { nixpkgs, taskbook-rs, ... }: {
+  outputs = { nixpkgs, taskbook, ... }: {
     # For NixOS
     nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
       modules = [{
-        nixpkgs.overlays = [ taskbook-rs.overlays.default ];
-        environment.systemPackages = with pkgs; [ taskbook-rs ];
+        nixpkgs.overlays = [ taskbook.overlays.default ];
+        environment.systemPackages = with pkgs; [ taskbook ];
       }];
     };
 
     # For nix-darwin (macOS)
     darwinConfigurations.myhost = darwin.lib.darwinSystem {
       modules = [{
-        nixpkgs.overlays = [ taskbook-rs.overlays.default ];
-        environment.systemPackages = with pkgs; [ taskbook-rs ];
+        nixpkgs.overlays = [ taskbook.overlays.default ];
+        environment.systemPackages = with pkgs; [ taskbook ];
       }];
     };
 
     # For home-manager
     homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
       modules = [{
-        nixpkgs.overlays = [ taskbook-rs.overlays.default ];
-        home.packages = with pkgs; [ taskbook-rs ];
+        nixpkgs.overlays = [ taskbook.overlays.default ];
+        home.packages = with pkgs; [ taskbook ];
       }];
     };
   };
@@ -67,13 +67,13 @@ Add to your system flake:
 Or run directly:
 
 ```bash
-nix run github:alexanderdavidsen/taskbook-rs
+nix run github:taskbook-sh/taskbook
 ```
 
 ### Cargo Install
 
 ```bash
-cargo install --git https://github.com/alexanderdavidsen/taskbook-rs
+cargo install --git https://github.com/taskbook-sh/taskbook
 ```
 
 ## Server (tb-server)
@@ -82,7 +82,7 @@ The server is only needed if you want to sync tasks across multiple devices. See
 
 ### Pre-built Binaries
 
-Download from [GitHub Releases](https://github.com/alexanderdavidsen/taskbook-rs/releases).
+Download from [GitHub Releases](https://github.com/taskbook-sh/taskbook/releases).
 
 ### Build from Source
 
@@ -119,4 +119,4 @@ tb
 
 If you're migrating from the original Node.js taskbook, your existing data will work automatically. The data format and directory structure (`~/.taskbook/`) are fully compatible.
 
-Simply install taskbook-rs and run `tb` to see your existing tasks.
+Simply install taskbook and run `tb` to see your existing tasks.

@@ -3,7 +3,7 @@ name = "taskbook-server"
 version = "1.0.6"
 edition = "2021"
 rust-version = "1.75"
-description = "Server for taskbook-rs sync"
+description = "Server for taskbook sync"
 license = "MIT"
 
 [dependencies]

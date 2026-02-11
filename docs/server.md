@@ -13,8 +13,8 @@ The easiest way to run the server is with Docker Compose:
 
 ```bash
 # Clone the repository
-git clone https://github.com/alexanderdavidsen/taskbook-rs.git
-cd taskbook-rs
+git clone https://github.com/taskbook-sh/taskbook.git
+cd taskbook
 
 # Start the server and database
 docker compose up -d

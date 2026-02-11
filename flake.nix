@@ -21,8 +21,8 @@
       in
       {
         packages = {
-          default = pkgs.taskbook-rs;
-          taskbook-rs = pkgs.taskbook-rs;
+          default = pkgs.taskbook;
+          taskbook = pkgs.taskbook;
         };
       });
 }

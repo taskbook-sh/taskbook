@@ -153,7 +153,7 @@ echo "  updated overlay.nix"
 # k8s/deployment.yaml (gitignored — update for local use)
 DEPLOYMENT="$REPO_ROOT/k8s/deployment.yaml"
 if [[ -f "$DEPLOYMENT" ]]; then
-  sed -i '' "s|image: ghcr.io/alexanderdavidsen/taskbook-rs-server:[^ ]*|image: ghcr.io/alexanderdavidsen/taskbook-rs-server:${VERSION}|" "$DEPLOYMENT"
+  sed -i '' "s|image: ghcr.io/taskbook-sh/taskbook-server:[^ ]*|image: ghcr.io/taskbook-sh/taskbook-server:${VERSION}|" "$DEPLOYMENT"
   echo "  updated k8s/deployment.yaml (local only, gitignored)"
 fi
 
