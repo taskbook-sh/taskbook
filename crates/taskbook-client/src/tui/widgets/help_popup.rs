@@ -105,8 +105,16 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
             Span::styled("Archive view", desc_style),
         ]),
         Line::from(vec![
+            Span::styled("    /       ", key_style),
+            Span::styled("Search items", desc_style),
+        ]),
+        Line::from(vec![
             Span::styled("    h       ", key_style),
             Span::styled("Toggle hide completed", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    Esc     ", key_style),
+            Span::styled("Clear search/filter / Quit", desc_style),
         ]),
         Line::from(vec![
             Span::styled("    Enter   ", key_style),

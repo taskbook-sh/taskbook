@@ -14,7 +14,7 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         .constraints([Constraint::Length(1), Constraint::Length(1)])
         .split(area);
 
-    // Stats line or status message
+    // Stats line, status message, or search indicator
     if let Some(ref msg) = app.status_message {
         let style = match msg.kind {
             StatusKind::Success => app.theme.success,
@@ -23,6 +23,17 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         };
         let line = Line::from(vec![Span::raw("  "), Span::styled(&msg.text, style)]);
         frame.render_widget(Paragraph::new(line), chunks[0]);
+    } else if let Some(ref term) = app.filter.search_term {
+        let search_line = Line::from(vec![
+            Span::raw("  "),
+            Span::styled("Search: ", app.theme.info),
+            Span::styled(
+                format!("\"{}\"", term),
+                app.theme.info.add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  (Esc to clear)", app.theme.muted),
+        ]);
+        frame.render_widget(Paragraph::new(search_line), chunks[0]);
     } else if app.config.display_progress_overview {
         let stats = app.get_stats();
         let stats_line = Line::from(vec![

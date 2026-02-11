@@ -46,17 +46,10 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
             .filter(|t| t.is_complete)
             .count();
 
-        // Filter items for display (respecting hide_completed)
+        // Filter items for display (respecting all active filters)
         let visible_items: Vec<&StorageItem> = board_items
             .into_iter()
-            .filter(|item| {
-                if app.filter.hide_completed {
-                    if let Some(task) = item.as_task() {
-                        return !task.is_complete;
-                    }
-                }
-                true
-            })
+            .filter(|item| app.should_show_item(item))
             .collect();
 
         // Skip board if all visible items are hidden
