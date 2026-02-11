@@ -3,7 +3,7 @@ name = "taskbook-common"
 version = "1.0.6"
 edition = "2021"
 rust-version = "1.75"
-description = "Shared types for taskbook-rs"
+description = "Shared types for taskbook"
 license = "MIT"
 
 [dependencies]

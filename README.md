@@ -1,4 +1,4 @@
-# taskbook-rs
+# taskbook
 
 A Rust port of [taskbook](https://github.com/klaussinani/taskbook) - tasks, boards & notes for the command-line habitat.
 
@@ -12,7 +12,7 @@ A Rust port of [taskbook](https://github.com/klaussinani/taskbook) - tasks, boar
 
 ## Installation
 
-Download the latest binary from [releases](https://github.com/alexanderdavidsen/taskbook-rs/releases) or build from source:
+Download the latest binary from [releases](https://github.com/taskbook-sh/taskbook/releases) or build from source:
 
 ```bash
 cargo install --path crates/taskbook-client
@@ -22,10 +22,10 @@ cargo install --path crates/taskbook-client
 
 ```nix
 {
-  inputs.taskbook-rs.url = "github:alexanderdavidsen/taskbook-rs";
+  inputs.taskbook.url = "github:taskbook-sh/taskbook";
 
   # Add to your packages
-  environment.systemPackages = [ inputs.taskbook-rs.packages.${system}.default ];
+  environment.systemPackages = [ inputs.taskbook.packages.${system}.default ];
 }
 ```
 
