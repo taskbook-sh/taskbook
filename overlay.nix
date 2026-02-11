@@ -17,7 +17,7 @@ let
     };
     aarch64-darwin = {
       url = "https://github.com/taskbook-sh/taskbook/releases/download/v${version}/tb-macos-aarch64.tar.gz";
-      hash = "sha256-zuCn+JoEwa3SvZxEECJoZsm+BlqaGkge8wn9Ru9Fw7w=";
+      hash = "sha256-BM7Q5f7pDZbKWYKfCtEGhWndPjDtOkd9GrMKXjtOujc=";
     };
   };
 
