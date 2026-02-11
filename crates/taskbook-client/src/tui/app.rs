@@ -142,7 +142,10 @@ impl App {
             items: HashMap::new(),
             popup: None,
             status_message: None,
-            filter: FilterState::default(),
+            filter: FilterState {
+                hide_completed: !config.display_complete_tasks,
+                ..Default::default()
+            },
             running: true,
             theme,
             config,
@@ -284,6 +287,8 @@ impl App {
     /// Toggle hide completed tasks
     pub fn toggle_hide_completed(&mut self) {
         self.filter.hide_completed = !self.filter.hide_completed;
+        self.config.display_complete_tasks = !self.filter.hide_completed;
+        let _ = self.config.save();
         self.update_display_order();
         // Clamp selection
         if !self.display_order.is_empty() && self.selected_index >= self.display_order.len() {
