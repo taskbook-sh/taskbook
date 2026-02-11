@@ -1,6 +1,6 @@
 [package]
 name = "taskbook-client"
-version = "1.0.6"
+version = "1.0.7"
 edition = "2021"
 rust-version = "1.75"
 description = "Tasks, boards & notes for the command-line habitat"
