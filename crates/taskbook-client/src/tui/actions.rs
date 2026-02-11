@@ -18,8 +18,12 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         // Quit
         KeyCode::Char('q') => app.quit(),
         KeyCode::Esc => {
-            // If board filter is active, clear it; otherwise quit
-            if app.filter.board_filter.is_some() {
+            if app.filter.search_term.is_some() {
+                app.filter.search_term = None;
+                app.update_display_order();
+                app.selected_index = 0;
+                app.set_status("Search cleared".to_string(), StatusKind::Info);
+            } else if app.filter.board_filter.is_some() {
                 app.clear_board_filter();
                 app.set_status("Filter cleared".to_string(), StatusKind::Info);
             } else {
@@ -241,7 +245,15 @@ fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<(
             }
             InputResult::Submit => {
                 if !input.trim().is_empty() {
+                    let term = input.clone();
                     app.filter.search_term = Some(input);
+                    app.update_display_order();
+                    app.selected_index = 0;
+                    let count = app.display_order.len();
+                    app.set_status(
+                        format!("Search: \"{}\" ({} matches)", term, count),
+                        StatusKind::Info,
+                    );
                 }
                 app.popup = None;
             }

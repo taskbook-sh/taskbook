@@ -213,12 +213,18 @@ impl App {
     }
 
     /// Check if an item should be shown based on current filters
-    fn should_show_item(&self, item: &StorageItem) -> bool {
+    pub fn should_show_item(&self, item: &StorageItem) -> bool {
         if self.filter.hide_completed {
             if let Some(task) = item.as_task() {
                 if task.is_complete {
                     return false;
                 }
+            }
+        }
+        if let Some(ref term) = self.filter.search_term {
+            let term_lower = term.to_lowercase();
+            if !item.description().to_lowercase().contains(&term_lower) {
+                return false;
             }
         }
         true
