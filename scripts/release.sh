@@ -102,6 +102,64 @@ if [[ "$TAG_MODE" == true ]]; then
     fi
   fi
 
+  # --------------- update overlay.nix hashes ---------------
+  if [[ "$DRY_RUN" == false ]]; then
+    echo ""
+    echo "Waiting for release workflow to start ..."
+    RUN_ID=""
+    for _ in $(seq 1 30); do
+      RUN_ID=$(gh run list --workflow release.yml --json databaseId,headBranch \
+        -q "[.[] | select(.headBranch == \"${TAG}\")][0].databaseId" --limit 10 2>/dev/null)
+      if [[ -n "$RUN_ID" ]]; then
+        break
+      fi
+      sleep 5
+    done
+
+    if [[ -z "$RUN_ID" ]]; then
+      echo "Warning: could not find release workflow run. Skipping overlay hash update." >&2
+      echo "Update overlay.nix hashes manually after the release is published."
+      exit 0
+    fi
+
+    echo "Watching workflow run ${RUN_ID} ..."
+    if ! gh run watch "$RUN_ID" --exit-status; then
+      echo "Error: release workflow failed." >&2
+      exit 1
+    fi
+
+    echo "Downloading release assets and updating overlay.nix hashes ..."
+    HASH_TMPDIR=$(mktemp -d)
+    trap "rm -rf $HASH_TMPDIR" EXIT
+
+    TARBALLS=(
+      "tb-linux-x86_64.tar.gz"
+      "tb-linux-aarch64.tar.gz"
+      "tb-macos-x86_64.tar.gz"
+      "tb-macos-aarch64.tar.gz"
+    )
+
+    for tarball in "${TARBALLS[@]}"; do
+      gh release download "${TAG}" --pattern "${tarball}" --dir "$HASH_TMPDIR"
+      hash="sha256-$(openssl dgst -sha256 -binary "${HASH_TMPDIR}/${tarball}" | base64 | tr -d '\n')"
+      awk -v name="${tarball}" -v newhash="${hash}" '
+        $0 ~ name { found=1 }
+        found && /hash = "/ {
+          sub(/hash = "[^"]*"/, "hash = \"" newhash "\"")
+          found=0
+        }
+        { print }
+      ' "$REPO_ROOT/overlay.nix" > "$REPO_ROOT/overlay.nix.tmp"
+      mv "$REPO_ROOT/overlay.nix.tmp" "$REPO_ROOT/overlay.nix"
+      echo "  ${tarball}: ${hash}"
+    done
+
+    git -C "$REPO_ROOT" add overlay.nix
+    git -C "$REPO_ROOT" commit -m "Update overlay.nix hashes for ${TAG}"
+    git -C "$REPO_ROOT" push "${REMOTE}" master
+    echo "Pushed updated overlay.nix hashes to master."
+  fi
+
   exit 0
 fi
 
