@@ -21,11 +21,11 @@ jobs:
             os: ubuntu-latest
             name: tb-linux-aarch64
           - target: x86_64-apple-darwin
-            os: macos-latest
-            name: tb-macos-x86_64
+            os: darwin-latest
+            name: tb-darwin-x86_64
           - target: aarch64-apple-darwin
-            os: macos-latest
-            name: tb-macos-aarch64
+            os: darwin-latest
+            name: tb-darwin-aarch64
 
     runs-on: ${{ matrix.os }}
 
