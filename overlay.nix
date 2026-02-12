@@ -12,11 +12,11 @@ let
       hash = "sha256-Qmnvhg21D9J67LORuk+x3CMxD4bghP4px5vDW34aakc=";
     };
     x86_64-darwin = {
-      url = "https://github.com/taskbook-sh/taskbook/releases/download/v${version}/tb-macos-x86_64.tar.gz";
+      url = "https://github.com/taskbook-sh/taskbook/releases/download/v${version}/tb-darwin-x86_64.tar.gz";
       hash = "sha256-QQrfzzC+N2e22eyKSQSuAsutJExd0U9rHneRv00TU0Q=";
     };
     aarch64-darwin = {
-      url = "https://github.com/taskbook-sh/taskbook/releases/download/v${version}/tb-macos-aarch64.tar.gz";
+      url = "https://github.com/taskbook-sh/taskbook/releases/download/v${version}/tb-darwin-aarch64.tar.gz";
       hash = "sha256-BM7Q5f7pDZbKWYKfCtEGhWndPjDtOkd9GrMKXjtOujc=";
     };
   };
