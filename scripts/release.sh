@@ -135,8 +135,8 @@ if [[ "$TAG_MODE" == true ]]; then
     TARBALLS=(
       "tb-linux-x86_64.tar.gz"
       "tb-linux-aarch64.tar.gz"
-      "tb-macos-x86_64.tar.gz"
-      "tb-macos-aarch64.tar.gz"
+      "tb-darwin-x86_64.tar.gz"
+      "tb-darwin-aarch64.tar.gz"
     )
 
     for tarball in "${TARBALLS[@]}"; do
