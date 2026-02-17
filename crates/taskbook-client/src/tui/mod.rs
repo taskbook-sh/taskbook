@@ -125,6 +125,14 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> 
     let events = create_event_handler(&app.config);
 
     while app.running {
+        // Force full redraw if requested (e.g. after returning from external editor)
+        if app.needs_full_redraw {
+            terminal
+                .clear()
+                .map_err(|e| TaskbookError::Tui(e.to_string()))?;
+            app.needs_full_redraw = false;
+        }
+
         terminal
             .draw(|f| ui::render(f, app))
             .map_err(|e| TaskbookError::Tui(e.to_string()))?;

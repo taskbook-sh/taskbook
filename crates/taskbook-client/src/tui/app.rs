@@ -77,6 +77,8 @@ pub struct App {
     pub display_order: Vec<u64>,
     /// Cached statistics (recalculated on refresh)
     cached_stats: Stats,
+    /// Flag to request a full terminal redraw (e.g. after suspend/resume)
+    pub needs_full_redraw: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,6 +192,7 @@ impl App {
             sort_method: config.sort_method,
             config,
             display_order: Vec::new(),
+            needs_full_redraw: false,
             cached_stats: Stats {
                 percent: 0,
                 complete: 0,

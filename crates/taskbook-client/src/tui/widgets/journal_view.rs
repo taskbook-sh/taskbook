@@ -28,8 +28,17 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
     dates.sort_by(|a, b| {
         let items_a = grouped.get(a).unwrap();
         let items_b = grouped.get(b).unwrap();
-        let ts_a = items_a.first().map(|i| i.timestamp()).unwrap_or(0);
-        let ts_b = items_b.first().map(|i| i.timestamp()).unwrap_or(0);
+        // Use the maximum timestamp in the group to represent the group date
+        let ts_a = items_a
+            .iter()
+            .map(|i| i.timestamp())
+            .max()
+            .unwrap_or(0);
+        let ts_b = items_b
+            .iter()
+            .map(|i| i.timestamp())
+            .max()
+            .unwrap_or(0);
         ts_b.cmp(&ts_a) // Newest first
     });
 
@@ -71,9 +80,13 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from("")); // Spacing after header
         item_line_map.push(None);
 
-        // Sort items by timestamp (newest first)
+        // Sort items by timestamp (newest first), then by ID (asc) to match display order
         let mut sorted_items = visible_items;
-        sorted_items.sort_by_key(|item| std::cmp::Reverse(item.timestamp()));
+        sorted_items.sort_by(|a, b| {
+            b.timestamp()
+                .cmp(&a.timestamp())
+                .then_with(|| a.id().cmp(&b.id()))
+        });
 
         for item in sorted_items {
             let is_selected = app.selected_id() == Some(item.id());
