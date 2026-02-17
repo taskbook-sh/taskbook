@@ -7,13 +7,13 @@ use std::process::{Command, Stdio};
 use crate::error::{Result, TaskbookError};
 
 /// Template shown when creating a new note in the external editor
-const NEW_NOTE_TEMPLATE: &str = r#"
-# Write your note title on the first non-comment line.
-# Then add the body content below.
-#
-# Lines starting with # are comments and will be ignored.
-# Delete all content (or leave only comments) to cancel.
-"#;
+const NEW_NOTE_TEMPLATE: &str = "\
+// Write your note title on the first non-comment line.
+// Then add the body content below.
+//
+// Lines starting with // are comments and will be ignored.
+// Delete all content (or leave only comments) to cancel.
+";
 
 /// Result of parsing editor content
 #[derive(Debug)]
@@ -105,14 +105,14 @@ pub fn edit_existing_note_in_editor(
     }
 
     content.push_str("\n\n");
-    content.push_str("# Lines starting with # are comments and will be ignored.\n");
-    content.push_str("# Delete all content (or leave only comments) to cancel.\n");
+    content.push_str("// Lines starting with // are comments and will be ignored.\n");
+    content.push_str("// Delete all content (or leave only comments) to cancel.\n");
 
     edit_in_external_editor(&content)
 }
 
 /// Parse editor content into title and body
-/// - Lines starting with # are comments (ignored)
+/// - Lines starting with // are comments (ignored)
 /// - First non-empty, non-comment line is the title
 /// - Remaining non-comment lines form the body
 /// - Returns None if content is empty or only contains comments
@@ -125,7 +125,7 @@ fn parse_note_content(content: &str) -> Result<Option<NoteContent>> {
         let trimmed = line.trim();
 
         // Skip comments
-        if trimmed.starts_with('#') {
+        if trimmed.starts_with("//") {
             continue;
         }
 
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_parse_only_comments() {
-        let content = "# comment 1\n# comment 2\n";
+        let content = "// comment 1\n// comment 2\n";
         assert!(parse_note_content(content).unwrap().is_none());
     }
 
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_parse_title_with_comments() {
-        let content = "# Comment\nMy note title\n# Another comment\n";
+        let content = "// Comment\nMy note title\n// Another comment\n";
         let result = parse_note_content(content).unwrap().unwrap();
         assert_eq!(result.title, "My note title");
         assert!(result.body.is_none());
@@ -217,12 +217,18 @@ mod tests {
     #[test]
     fn test_parse_title_and_body_with_comments() {
         let content =
-            "# Header comment\nMy title\n\nBody line 1\n# Comment in body (skipped)\nBody line 2\n";
+            "// Header comment\nMy title\n\nBody line 1\n// Comment in body (skipped)\nBody line 2\n";
         let result = parse_note_content(content).unwrap().unwrap();
         assert_eq!(result.title, "My title");
-        // Note: comments within the body section are included in body_lines collection
-        // but since our impl collects all non-comment lines after title, this test shows behavior
         assert!(result.body.is_some());
+    }
+
+    #[test]
+    fn test_parse_hash_in_title_preserved() {
+        let content = "# My Heading Title\n\nSome body text\n";
+        let result = parse_note_content(content).unwrap().unwrap();
+        assert_eq!(result.title, "# My Heading Title");
+        assert_eq!(result.body.as_deref(), Some("Some body text"));
     }
 
     #[test]

@@ -109,12 +109,21 @@ impl Taskbook {
     fn get_boards(&self, data: &HashMap<String, StorageItem>) -> Vec<String> {
         let mut boards = vec![DEFAULT_BOARD.to_string()];
 
-        for item in data.values() {
+        // Iterate items in ID order for deterministic board discovery
+        let mut items: Vec<_> = data.iter().collect();
+        items.sort_by_key(|(k, _)| k.parse::<u64>().unwrap_or(u64::MAX));
+
+        for (_, item) in &items {
             for b in item.boards() {
                 if !boards.iter().any(|existing| board::board_eq(existing, b)) {
                     boards.push(b.clone());
                 }
             }
+        }
+
+        // Sort non-default boards alphabetically (case-insensitive), keeping default first
+        if boards.len() > 1 {
+            boards[1..].sort_by_key(|a| a.to_lowercase());
         }
 
         boards

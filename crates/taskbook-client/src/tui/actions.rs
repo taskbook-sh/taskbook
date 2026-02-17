@@ -191,6 +191,14 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
                 cursor: 0,
             });
         }
+        // Cycle sort method
+        KeyCode::Char('S') if app.view == ViewMode::Board => {
+            app.cycle_sort_method();
+            app.set_status(
+                format!("Sort: {}", app.sort_method.display_name()),
+                StatusKind::Info,
+            );
+        }
         // Toggle hide completed
         KeyCode::Char('h') if app.view != ViewMode::Archive => {
             app.toggle_hide_completed();

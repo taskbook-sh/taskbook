@@ -75,6 +75,9 @@ impl TuiSuspendGuard {
         .map_err(|e| TaskbookError::Tui(e.to_string()))?;
         stdout.flush().ok();
 
+        // Drain any stale keyboard events buffered while the editor was running
+        event::drain_input_buffer();
+
         // Resume the event handler thread
         event::resume_event_handler();
 

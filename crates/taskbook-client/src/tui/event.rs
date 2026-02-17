@@ -37,6 +37,13 @@ pub fn resume_event_handler() {
     EVENT_POLLING_PAUSED.store(false, Ordering::SeqCst);
 }
 
+/// Drain any buffered input events (e.g. stale keystrokes from external editor)
+pub fn drain_input_buffer() {
+    while event::poll(Duration::from_millis(0)).unwrap_or(false) {
+        let _ = event::read();
+    }
+}
+
 /// Event handler with background thread
 pub struct EventHandler {
     receiver: mpsc::Receiver<Event>,
