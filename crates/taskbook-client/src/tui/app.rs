@@ -59,8 +59,10 @@ pub struct App {
     pub boards: Vec<String>,
     /// Cached items grouped by board/date
     pub items: HashMap<String, StorageItem>,
-    /// Active popup/dialog state
+    /// Active popup/dialog state (Help only)
     pub popup: Option<PopupState>,
+    /// Command line state
+    pub command_line: CommandLineState,
     /// Status message (success/error feedback)
     pub status_message: Option<StatusMessage>,
     /// Filter state
@@ -92,55 +94,50 @@ pub enum ViewMode {
 #[derive(Debug, Clone)]
 pub enum PopupState {
     Help,
-    EditItem {
-        id: u64,
-        input: String,
-        cursor: usize,
-    },
-    Search {
-        input: String,
-        cursor: usize,
-    },
-    SelectBoardForMove {
-        id: u64,
-        selected: usize,
-    },
-    SetPriority {
-        id: u64,
-    },
-    ConfirmDelete {
-        ids: Vec<u64>,
-    },
-    ConfirmClear,
-    // Board picker for task/note creation
-    SelectBoardForTask {
-        selected: usize,
-    },
-    SelectBoardForNote {
-        selected: usize,
-    },
-    // Create new board
-    CreateBoard {
-        input: String,
-        cursor: usize,
-    },
-    // Task/note input after board selection
-    CreateTaskWithBoard {
-        board: String,
-        input: String,
-        cursor: usize,
-    },
-    CreateNoteWithBoard {
-        board: String,
-        input: String,
-        cursor: usize,
-    },
-    // Rename board
-    RenameBoard {
-        old_name: String,
-        input: String,
-        cursor: usize,
-    },
+}
+
+/// Command line state for the bottom input bar
+#[derive(Debug, Clone, Default)]
+pub struct CommandLineState {
+    /// Current input text
+    pub input: String,
+    /// Cursor position (character index)
+    pub cursor: usize,
+    /// Whether the command line is focused/active
+    pub focused: bool,
+    /// Autocomplete suggestions
+    pub suggestions: Vec<Suggestion>,
+    /// Currently selected suggestion index
+    pub selected_suggestion: Option<usize>,
+    /// Pending confirmation action
+    pub pending_confirm: Option<PendingAction>,
+}
+
+/// An autocomplete suggestion
+#[derive(Debug, Clone)]
+pub struct Suggestion {
+    /// Display text shown in the dropdown
+    pub display: String,
+    /// Text to insert when accepted
+    pub completion: String,
+    /// Optional description shown dimmed
+    pub description: Option<String>,
+    /// Kind of suggestion for styling
+    pub kind: SuggestionKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SuggestionKind {
+    Command,
+    Board,
+    Item,
+}
+
+/// An action waiting for confirmation
+#[derive(Debug, Clone)]
+pub enum PendingAction {
+    Delete { ids: Vec<u64> },
+    Clear,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -182,6 +179,7 @@ impl App {
             boards: Vec::new(),
             items: HashMap::new(),
             popup: None,
+            command_line: CommandLineState::default(),
             status_message: None,
             filter: FilterState {
                 hide_completed: !config.display_complete_tasks,
@@ -461,6 +459,21 @@ impl App {
             self.recalculate_stats();
         }
         Ok(())
+    }
+
+    /// Activate the command line with an optional prefix
+    pub fn activate_command_line(&mut self, prefix: &str) {
+        self.command_line.input = prefix.to_string();
+        self.command_line.cursor = prefix.chars().count();
+        self.command_line.focused = true;
+        self.command_line.suggestions.clear();
+        self.command_line.selected_suggestion = None;
+        self.command_line.pending_confirm = None;
+    }
+
+    /// Deactivate the command line and clear state
+    pub fn deactivate_command_line(&mut self) {
+        self.command_line = CommandLineState::default();
     }
 
     /// Quit the application

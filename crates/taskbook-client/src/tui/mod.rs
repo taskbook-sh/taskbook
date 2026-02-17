@@ -1,5 +1,7 @@
 mod actions;
 mod app;
+mod autocomplete;
+mod command_parser;
 mod event;
 mod input_handler;
 mod theme;
