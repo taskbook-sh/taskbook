@@ -1,20 +1,17 @@
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
     style::Modifier,
     text::{Line, Span},
     widgets::Paragraph,
     Frame,
 };
 
-use crate::tui::app::{App, StatusKind, ViewMode};
+use ratatui::layout::Rect;
 
-pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1)])
-        .split(area);
+use crate::tui::app::{App, StatusKind};
 
-    // Stats line, status message, or search indicator
+/// Render the single-line stats/status bar
+pub fn render_stats_line(frame: &mut Frame, app: &App, area: Rect) {
+    // Status message takes priority
     if let Some(ref msg) = app.status_message {
         let style = match msg.kind {
             StatusKind::Success => app.theme.success,
@@ -22,8 +19,12 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             StatusKind::Info => app.theme.info,
         };
         let line = Line::from(vec![Span::raw("  "), Span::styled(&msg.text, style)]);
-        frame.render_widget(Paragraph::new(line), chunks[0]);
-    } else if let Some(ref term) = app.filter.search_term {
+        frame.render_widget(Paragraph::new(line), area);
+        return;
+    }
+
+    // Search indicator
+    if let Some(ref term) = app.filter.search_term {
         let search_line = Line::from(vec![
             Span::raw("  "),
             Span::styled("Search: ", app.theme.info),
@@ -33,8 +34,12 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             ),
             Span::styled("  (Esc to clear)", app.theme.muted),
         ]);
-        frame.render_widget(Paragraph::new(search_line), chunks[0]);
-    } else if app.config.display_progress_overview {
+        frame.render_widget(Paragraph::new(search_line), area);
+        return;
+    }
+
+    // Progress overview
+    if app.config.display_progress_overview {
         let stats = app.get_stats();
         let stats_line = Line::from(vec![
             Span::raw("  "),
@@ -53,42 +58,6 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(format!("{}", stats.notes), app.theme.info),
             Span::styled(" notes", app.theme.muted),
         ]);
-        frame.render_widget(Paragraph::new(stats_line), chunks[0]);
+        frame.render_widget(Paragraph::new(stats_line), area);
     }
-
-    // Keybindings line
-    let keybindings = match app.view {
-        ViewMode::Board | ViewMode::Timeline | ViewMode::Journal => {
-            vec![
-                ("?", "Help"),
-                ("t", "Task"),
-                ("n", "Note"),
-                ("c", "Check"),
-                ("h", "Hide done"),
-                ("q", "Quit"),
-            ]
-        }
-        ViewMode::Archive => {
-            vec![
-                ("?", "Help"),
-                ("r", "Restore"),
-                ("1", "Board"),
-                ("q", "Quit"),
-            ]
-        }
-    };
-
-    let mut spans: Vec<Span> = vec![Span::raw("  ")];
-    for (i, (key, desc)) in keybindings.iter().enumerate() {
-        if i > 0 {
-            spans.push(Span::styled("  ", app.theme.muted));
-        }
-        spans.push(Span::styled(
-            format!("[{}]", key),
-            app.theme.muted.add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::styled(format!(" {}", desc), app.theme.muted));
-    }
-
-    frame.render_widget(Paragraph::new(Line::from(spans)), chunks[1]);
 }

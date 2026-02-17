@@ -1,17 +1,275 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::editor;
 use crate::error::Result;
 use taskbook_common::board;
 
-use super::app::{App, PopupState, StatusKind, ViewMode};
+use super::app::{App, PendingAction, PopupState, StatusKind, ViewMode};
+use super::autocomplete;
+use super::command_parser::{self, ParsedCommand};
 use super::input_handler::{handle_text_input, InputResult};
 
 /// Handle a key event
 pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
-    // Handle popup-specific keys first
-    if let Some(popup) = app.popup.clone() {
-        return handle_popup_key(app, key, popup);
+    // 1. Help popup → any key dismisses
+    if app.popup.is_some() {
+        app.popup = None;
+        return Ok(());
+    }
+
+    // 2. Pending confirm → Enter/Esc only
+    if app.command_line.pending_confirm.is_some() {
+        return handle_confirm_key(app, key);
+    }
+
+    // 3. Command line focused → handle command line input
+    if app.command_line.focused {
+        return handle_command_line_key(app, key);
+    }
+
+    // 4. Normal mode shortcuts
+    handle_shortcut_key(app, key)
+}
+
+/// Handle keys when a confirmation is pending
+fn handle_confirm_key(app: &mut App, key: KeyEvent) -> Result<()> {
+    match key.code {
+        KeyCode::Enter => {
+            if let Some(action) = app.command_line.pending_confirm.take() {
+                match action {
+                    PendingAction::Delete { ids } => {
+                        delete_items(app, &ids)?;
+                    }
+                    PendingAction::Clear => {
+                        clear_completed(app)?;
+                    }
+                }
+            }
+            app.deactivate_command_line();
+        }
+        KeyCode::Esc => {
+            app.command_line.pending_confirm = None;
+            app.deactivate_command_line();
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Handle keys when the command line is focused
+fn handle_command_line_key(app: &mut App, key: KeyEvent) -> Result<()> {
+    // Tab accepts the selected suggestion
+    if key.code == KeyCode::Tab {
+        accept_suggestion(app);
+        return Ok(());
+    }
+
+    // Up/Down navigate suggestions (only if suggestions exist)
+    if !app.command_line.suggestions.is_empty() {
+        match key.code {
+            KeyCode::Up => {
+                let count = app.command_line.suggestions.len();
+                app.command_line.selected_suggestion = Some(match app.command_line.selected_suggestion
+                {
+                    None => count - 1,
+                    Some(0) => count - 1,
+                    Some(i) => i - 1,
+                });
+                return Ok(());
+            }
+            KeyCode::Down => {
+                let count = app.command_line.suggestions.len();
+                app.command_line.selected_suggestion =
+                    Some(match app.command_line.selected_suggestion {
+                        None => 0,
+                        Some(i) if i + 1 >= count => 0,
+                        Some(i) => i + 1,
+                    });
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
+
+    // Use the existing text input handler for editing
+    let input = app.command_line.input.clone();
+    let cursor = app.command_line.cursor;
+
+    match handle_text_input(key, &input, cursor) {
+        InputResult::Cancel => {
+            app.deactivate_command_line();
+        }
+        InputResult::Submit => {
+            let input = app.command_line.input.clone();
+            app.deactivate_command_line();
+            if !input.trim().is_empty() {
+                execute_input(app, &input)?;
+            }
+        }
+        InputResult::Changed {
+            input: new_input,
+            cursor: new_cursor,
+        } => {
+            app.command_line.input = new_input;
+            app.command_line.cursor = new_cursor;
+            autocomplete::update_suggestions(app);
+        }
+        InputResult::Ignored => {}
+    }
+
+    Ok(())
+}
+
+/// Accept the currently selected suggestion
+fn accept_suggestion(app: &mut App) {
+    let selected = app.command_line.selected_suggestion.unwrap_or(0);
+    if let Some(suggestion) = app.command_line.suggestions.get(selected).cloned() {
+        app.command_line.input = suggestion.completion.clone();
+        app.command_line.cursor = suggestion.completion.chars().count();
+        app.command_line.suggestions.clear();
+        app.command_line.selected_suggestion = None;
+        // Re-trigger suggestions for the new input
+        autocomplete::update_suggestions(app);
+    }
+}
+
+/// Parse and execute the command line input
+fn execute_input(app: &mut App, input: &str) -> Result<()> {
+    match command_parser::parse_command(input) {
+        Ok(cmd) => execute_command(app, cmd),
+        Err(e) => {
+            app.set_status(e.message, StatusKind::Error);
+            Ok(())
+        }
+    }
+}
+
+/// Execute a parsed command
+fn execute_command(app: &mut App, cmd: ParsedCommand) -> Result<()> {
+    match cmd {
+        ParsedCommand::Task {
+            board,
+            description,
+            priority,
+        } => {
+            let board_name = board
+                .map(|b| board::normalize_board_name(&b))
+                .or_else(|| app.filter.board_filter.clone())
+                .unwrap_or_else(|| "my board".to_string());
+            app.taskbook
+                .create_task_direct(vec![board_name.clone()], description, priority)?;
+            app.refresh_items()?;
+            let display = board::display_name(&board_name);
+            app.set_status(format!("Task created in {}", display), StatusKind::Success);
+        }
+        ParsedCommand::Note { board, description } => {
+            let board_name = board
+                .map(|b| board::normalize_board_name(&b))
+                .or_else(|| app.filter.board_filter.clone())
+                .unwrap_or_else(|| "my board".to_string());
+            app.taskbook
+                .create_note_direct(vec![board_name.clone()], description)?;
+            app.refresh_items()?;
+            let display = board::display_name(&board_name);
+            app.set_status(format!("Note created in {}", display), StatusKind::Success);
+
+            // Open editor for the newly created note
+            // Find the highest ID note (just created)
+            if let Some(max_id) = app.items.values().map(|i| i.id()).max() {
+                if let Some(item) = app.items.get(&max_id.to_string()) {
+                    if !item.is_task() {
+                        edit_note_external(app, max_id)?;
+                    }
+                }
+            }
+        }
+        ParsedCommand::Edit { id, description } => {
+            edit_description(app, id, &description)?;
+        }
+        ParsedCommand::Move { id, board } => {
+            move_to_board(app, id, &board)?;
+        }
+        ParsedCommand::Delete { ids } => {
+            app.command_line.pending_confirm = Some(PendingAction::Delete { ids });
+        }
+        ParsedCommand::Search { term } => {
+            app.filter.search_term = Some(term.clone());
+            app.update_display_order();
+            app.selected_index = 0;
+            let count = app.display_order.len();
+            app.set_status(
+                format!("Search: \"{}\" ({} matches)", term, count),
+                StatusKind::Info,
+            );
+        }
+        ParsedCommand::Priority { id, level } => {
+            set_priority(app, id, level)?;
+        }
+        ParsedCommand::Check { ids } => {
+            for id in &ids {
+                toggle_check(app, *id)?;
+            }
+        }
+        ParsedCommand::Star { ids } => {
+            for id in &ids {
+                toggle_star(app, *id)?;
+            }
+        }
+        ParsedCommand::Begin { ids } => {
+            for id in &ids {
+                toggle_begin(app, *id)?;
+            }
+        }
+        ParsedCommand::Clear => {
+            app.command_line.pending_confirm = Some(PendingAction::Clear);
+        }
+        ParsedCommand::RenameBoard { old_name, new_name } => {
+            rename_board(app, &old_name, &new_name)?;
+        }
+        ParsedCommand::Board => {
+            app.clear_board_filter();
+            app.set_view(ViewMode::Board)?;
+        }
+        ParsedCommand::Timeline => {
+            app.clear_board_filter();
+            app.set_view(ViewMode::Timeline)?;
+        }
+        ParsedCommand::Archive => {
+            app.clear_board_filter();
+            app.set_view(ViewMode::Archive)?;
+        }
+        ParsedCommand::Journal => {
+            app.clear_board_filter();
+            app.set_view(ViewMode::Journal)?;
+        }
+        ParsedCommand::Sort => {
+            app.cycle_sort_method();
+            app.set_status(
+                format!("Sort: {}", app.sort_method.display_name()),
+                StatusKind::Info,
+            );
+        }
+        ParsedCommand::HideDone => {
+            app.toggle_hide_completed();
+            let msg = if app.filter.hide_completed {
+                "Hiding completed tasks"
+            } else {
+                "Showing completed tasks"
+            };
+            app.set_status(msg.to_string(), StatusKind::Info);
+        }
+        ParsedCommand::Help => {
+            app.popup = Some(PopupState::Help);
+        }
+    }
+    Ok(())
+}
+
+/// Handle shortcut keys in normal (unfocused) mode
+fn handle_shortcut_key(app: &mut App, key: KeyEvent) -> Result<()> {
+    // Ctrl shortcuts should not trigger single-char shortcuts
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        return Ok(());
     }
 
     match key.code {
@@ -41,10 +299,8 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         KeyCode::Enter => {
             if let Some(item) = app.selected_item() {
                 if !item.is_task() {
-                    // It's a note - open in external editor
                     edit_note_external(app, item.id())?;
                 } else if app.view == ViewMode::Board && app.filter.board_filter.is_none() {
-                    // It's a task in board view without filter - filter by board
                     if let Some(board_name) = app.get_board_for_selected() {
                         let display = board::display_name(&board_name);
                         app.set_board_filter(Some(board_name));
@@ -52,7 +308,6 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
                     }
                 }
             } else if app.view == ViewMode::Board && app.filter.board_filter.is_none() {
-                // No item selected but might have board to filter
                 if let Some(board_name) = app.get_board_for_selected() {
                     let display = board::display_name(&board_name);
                     app.set_board_filter(Some(board_name));
@@ -84,54 +339,59 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
             app.popup = Some(PopupState::Help);
         }
 
-        // Create task - skip board picker if already filtering
-        KeyCode::Char('t') if app.view != ViewMode::Archive => {
-            if let Some(ref board) = app.filter.board_filter {
-                app.popup = Some(PopupState::CreateTaskWithBoard {
-                    board: board.clone(),
-                    input: String::new(),
-                    cursor: 0,
-                });
-            } else {
-                app.popup = Some(PopupState::SelectBoardForTask { selected: 0 });
-            }
-        }
-        // Create note - skip board picker if already filtering
-        KeyCode::Char('n') if app.view != ViewMode::Archive => {
-            if let Some(ref board) = app.filter.board_filter {
-                app.popup = Some(PopupState::CreateNoteWithBoard {
-                    board: board.clone(),
-                    input: String::new(),
-                    cursor: 0,
-                });
-            } else {
-                app.popup = Some(PopupState::SelectBoardForNote { selected: 0 });
-            }
-        }
-        // Create new board
-        KeyCode::Char('B') if app.view != ViewMode::Archive => {
-            app.popup = Some(PopupState::CreateBoard {
-                input: String::new(),
-                cursor: 0,
-            });
-        }
-        // Rename board
-        KeyCode::Char('R') if app.view == ViewMode::Board => {
-            let board = app
-                .filter
-                .board_filter
-                .clone()
-                .or_else(|| app.get_board_for_selected());
-            if let Some(board_name) = board {
-                app.popup = Some(PopupState::RenameBoard {
-                    old_name: board_name,
-                    input: String::new(),
-                    cursor: 0,
-                });
-            }
+        // Slash or Tab activates command line
+        KeyCode::Char('/') | KeyCode::Tab => {
+            app.activate_command_line("/");
+            autocomplete::update_suggestions(app);
         }
 
-        // Item actions (require selection)
+        // Pre-fill shortcuts — activate command line with partial command
+        KeyCode::Char('t') if app.view != ViewMode::Archive => {
+            if let Some(ref board) = app.filter.board_filter.clone() {
+                app.activate_command_line(&format!("/task @{} ", board));
+            } else {
+                app.activate_command_line("/task @");
+                autocomplete::update_suggestions(app);
+            }
+        }
+        KeyCode::Char('n') if app.view != ViewMode::Archive => {
+            if let Some(ref board) = app.filter.board_filter.clone() {
+                app.activate_command_line(&format!("/note @{} ", board));
+            } else {
+                app.activate_command_line("/note @");
+                autocomplete::update_suggestions(app);
+            }
+        }
+        KeyCode::Char('e') if app.view != ViewMode::Archive => {
+            if let Some(item) = app.selected_item() {
+                let id = item.id();
+                let desc = item.description().to_string();
+                app.activate_command_line(&format!("/edit @{} {}", id, desc));
+            }
+        }
+        KeyCode::Char('m') if app.view != ViewMode::Archive => {
+            if let Some(id) = app.selected_id() {
+                app.activate_command_line(&format!("/move @{} @", id));
+                autocomplete::update_suggestions(app);
+            }
+        }
+        KeyCode::Char('p') if app.view != ViewMode::Archive => {
+            if let Some(item) = app.selected_item() {
+                if item.is_task() {
+                    app.activate_command_line(&format!("/priority @{} ", item.id()));
+                }
+            }
+        }
+        KeyCode::Char('d') if app.view != ViewMode::Archive => {
+            if let Some(id) = app.selected_id() {
+                app.command_line.pending_confirm = Some(PendingAction::Delete { ids: vec![id] });
+            }
+        }
+        KeyCode::Char('C') if app.view != ViewMode::Archive => {
+            app.command_line.pending_confirm = Some(PendingAction::Clear);
+        }
+
+        // Direct action shortcuts (no command line needed)
         KeyCode::Char('c') if app.view != ViewMode::Archive => {
             if let Some(id) = app.selected_id() {
                 toggle_check(app, id)?;
@@ -147,35 +407,6 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
                 toggle_star(app, id)?;
             }
         }
-        KeyCode::Char('e') if app.view != ViewMode::Archive => {
-            if let Some(item) = app.selected_item() {
-                let id = item.id();
-                let desc = item.description().to_string();
-                let cursor = desc.chars().count();
-                app.popup = Some(PopupState::EditItem {
-                    id,
-                    input: desc,
-                    cursor,
-                });
-            }
-        }
-        KeyCode::Char('m') if app.view != ViewMode::Archive => {
-            if let Some(id) = app.selected_id() {
-                app.popup = Some(PopupState::SelectBoardForMove { id, selected: 0 });
-            }
-        }
-        KeyCode::Char('p') if app.view != ViewMode::Archive => {
-            if let Some(item) = app.selected_item() {
-                if item.is_task() {
-                    app.popup = Some(PopupState::SetPriority { id: item.id() });
-                }
-            }
-        }
-        KeyCode::Char('d') if app.view != ViewMode::Archive => {
-            if let Some(id) = app.selected_id() {
-                app.popup = Some(PopupState::ConfirmDelete { ids: vec![id] });
-            }
-        }
         KeyCode::Char('r') if app.view == ViewMode::Archive => {
             if let Some(id) = app.selected_id() {
                 restore_item(app, id)?;
@@ -186,15 +417,7 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
                 copy_to_clipboard(app, id)?;
             }
         }
-        KeyCode::Char('C') if app.view != ViewMode::Archive => {
-            app.popup = Some(PopupState::ConfirmClear);
-        }
-        KeyCode::Char('/') => {
-            app.popup = Some(PopupState::Search {
-                input: String::new(),
-                cursor: 0,
-            });
-        }
+
         // Cycle sort method
         KeyCode::Char('S') if app.view == ViewMode::Board => {
             app.cycle_sort_method();
@@ -215,320 +438,6 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
         }
 
         _ => {}
-    }
-
-    Ok(())
-}
-
-fn handle_popup_key(app: &mut App, key: KeyEvent, popup: PopupState) -> Result<()> {
-    match popup {
-        PopupState::Help => {
-            app.popup = None;
-        }
-        PopupState::EditItem { id, input, cursor } => {
-            match handle_text_input(key, &input, cursor) {
-                InputResult::Cancel => app.popup = None,
-                InputResult::Submit => {
-                    if !input.trim().is_empty() {
-                        edit_description(app, id, &input)?;
-                    }
-                    app.popup = None;
-                }
-                InputResult::Changed {
-                    input: new_input,
-                    cursor: new_cursor,
-                } => {
-                    app.popup = Some(PopupState::EditItem {
-                        id,
-                        input: new_input,
-                        cursor: new_cursor,
-                    });
-                }
-                InputResult::Ignored => {
-                    app.popup = Some(PopupState::EditItem { id, input, cursor });
-                }
-            }
-        }
-        PopupState::Search { input, cursor } => match handle_text_input(key, &input, cursor) {
-            InputResult::Cancel => {
-                app.popup = None;
-                app.filter.search_term = None;
-                app.refresh_items()?;
-            }
-            InputResult::Submit => {
-                if !input.trim().is_empty() {
-                    let term = input.clone();
-                    app.filter.search_term = Some(input);
-                    app.update_display_order();
-                    app.selected_index = 0;
-                    let count = app.display_order.len();
-                    app.set_status(
-                        format!("Search: \"{}\" ({} matches)", term, count),
-                        StatusKind::Info,
-                    );
-                }
-                app.popup = None;
-            }
-            InputResult::Changed {
-                input: new_input,
-                cursor: new_cursor,
-            } => {
-                app.popup = Some(PopupState::Search {
-                    input: new_input,
-                    cursor: new_cursor,
-                });
-            }
-            InputResult::Ignored => {
-                app.popup = Some(PopupState::Search { input, cursor });
-            }
-        },
-        PopupState::SelectBoardForMove { id, mut selected } => {
-            let max_index = app.boards.len(); // includes "New board" option
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Char('j') | KeyCode::Down => {
-                    if selected < max_index {
-                        selected += 1;
-                    }
-                    app.popup = Some(PopupState::SelectBoardForMove { id, selected });
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    selected = selected.saturating_sub(1);
-                    app.popup = Some(PopupState::SelectBoardForMove { id, selected });
-                }
-                KeyCode::Enter => {
-                    if selected < app.boards.len() {
-                        let board = app.boards[selected].clone();
-                        move_to_board(app, id, &board)?;
-                        app.popup = None;
-                    } else {
-                        // "New board" selected - for now just open CreateBoard
-                        // TODO: Track pending action to move item after board creation
-                        app.popup = Some(PopupState::CreateBoard {
-                            input: String::new(),
-                            cursor: 0,
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
-        PopupState::SetPriority { id } => match key.code {
-            KeyCode::Esc => app.popup = None,
-            KeyCode::Char('1') => {
-                set_priority(app, id, 1)?;
-                app.popup = None;
-            }
-            KeyCode::Char('2') => {
-                set_priority(app, id, 2)?;
-                app.popup = None;
-            }
-            KeyCode::Char('3') => {
-                set_priority(app, id, 3)?;
-                app.popup = None;
-            }
-            _ => {}
-        },
-        PopupState::ConfirmDelete { ids } => match key.code {
-            KeyCode::Esc => app.popup = None,
-            KeyCode::Enter => {
-                delete_items(app, &ids)?;
-                app.popup = None;
-            }
-            _ => {}
-        },
-        PopupState::ConfirmClear => match key.code {
-            KeyCode::Esc => app.popup = None,
-            KeyCode::Enter => {
-                clear_completed(app)?;
-                app.popup = None;
-            }
-            _ => {}
-        },
-        PopupState::SelectBoardForTask { mut selected } => {
-            let max_index = app.boards.len();
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Char('j') | KeyCode::Down => {
-                    if selected < max_index {
-                        selected += 1;
-                    }
-                    app.popup = Some(PopupState::SelectBoardForTask { selected });
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    selected = selected.saturating_sub(1);
-                    app.popup = Some(PopupState::SelectBoardForTask { selected });
-                }
-                KeyCode::Enter => {
-                    if selected < app.boards.len() {
-                        let board = app.boards[selected].clone();
-                        app.popup = Some(PopupState::CreateTaskWithBoard {
-                            board,
-                            input: String::new(),
-                            cursor: 0,
-                        });
-                    } else {
-                        app.popup = Some(PopupState::CreateBoard {
-                            input: String::new(),
-                            cursor: 0,
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
-        PopupState::SelectBoardForNote { mut selected } => {
-            let max_index = app.boards.len();
-            match key.code {
-                KeyCode::Esc => app.popup = None,
-                KeyCode::Char('j') | KeyCode::Down => {
-                    if selected < max_index {
-                        selected += 1;
-                    }
-                    app.popup = Some(PopupState::SelectBoardForNote { selected });
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    selected = selected.saturating_sub(1);
-                    app.popup = Some(PopupState::SelectBoardForNote { selected });
-                }
-                KeyCode::Enter => {
-                    if selected < app.boards.len() {
-                        let board = app.boards[selected].clone();
-                        app.popup = Some(PopupState::CreateNoteWithBoard {
-                            board,
-                            input: String::new(),
-                            cursor: 0,
-                        });
-                    } else {
-                        app.popup = Some(PopupState::CreateBoard {
-                            input: String::new(),
-                            cursor: 0,
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
-        PopupState::CreateBoard { input, cursor } => match handle_text_input(key, &input, cursor) {
-            InputResult::Cancel => app.popup = None,
-            InputResult::Submit => {
-                if !input.trim().is_empty() {
-                    let board_name = board::normalize_board_name(&input);
-                    app.refresh_items()?;
-                    if !app.boards.iter().any(|b| board::board_eq(b, &board_name)) {
-                        app.boards.push(board_name.clone());
-                    }
-                    let display = board::display_name(&board_name);
-                    app.set_status(
-                        format!("Board {} ready - add a task or note to it", display),
-                        StatusKind::Success,
-                    );
-                }
-                app.popup = None;
-            }
-            InputResult::Changed {
-                input: new_input,
-                cursor: new_cursor,
-            } => {
-                app.popup = Some(PopupState::CreateBoard {
-                    input: new_input,
-                    cursor: new_cursor,
-                });
-            }
-            InputResult::Ignored => {
-                app.popup = Some(PopupState::CreateBoard { input, cursor });
-            }
-        },
-        PopupState::CreateTaskWithBoard {
-            board,
-            input,
-            cursor,
-        } => match handle_text_input(key, &input, cursor) {
-            InputResult::Cancel => app.popup = None,
-            InputResult::Submit => {
-                if !input.trim().is_empty() {
-                    create_task_in_board(app, &board, &input)?;
-                }
-                app.popup = None;
-            }
-            InputResult::Changed {
-                input: new_input,
-                cursor: new_cursor,
-            } => {
-                app.popup = Some(PopupState::CreateTaskWithBoard {
-                    board,
-                    input: new_input,
-                    cursor: new_cursor,
-                });
-            }
-            InputResult::Ignored => {
-                app.popup = Some(PopupState::CreateTaskWithBoard {
-                    board,
-                    input,
-                    cursor,
-                });
-            }
-        },
-        PopupState::CreateNoteWithBoard {
-            board,
-            input,
-            cursor,
-        } => match handle_text_input(key, &input, cursor) {
-            InputResult::Cancel => app.popup = None,
-            InputResult::Submit => {
-                if !input.trim().is_empty() {
-                    create_note_in_board(app, &board, &input)?;
-                }
-                app.popup = None;
-            }
-            InputResult::Changed {
-                input: new_input,
-                cursor: new_cursor,
-            } => {
-                app.popup = Some(PopupState::CreateNoteWithBoard {
-                    board,
-                    input: new_input,
-                    cursor: new_cursor,
-                });
-            }
-            InputResult::Ignored => {
-                app.popup = Some(PopupState::CreateNoteWithBoard {
-                    board,
-                    input,
-                    cursor,
-                });
-            }
-        },
-        PopupState::RenameBoard {
-            old_name,
-            input,
-            cursor,
-        } => match handle_text_input(key, &input, cursor) {
-            InputResult::Cancel => app.popup = None,
-            InputResult::Submit => {
-                if !input.trim().is_empty() {
-                    rename_board(app, &old_name, &input)?;
-                }
-                app.popup = None;
-            }
-            InputResult::Changed {
-                input: new_input,
-                cursor: new_cursor,
-            } => {
-                app.popup = Some(PopupState::RenameBoard {
-                    old_name,
-                    input: new_input,
-                    cursor: new_cursor,
-                });
-            }
-            InputResult::Ignored => {
-                app.popup = Some(PopupState::RenameBoard {
-                    old_name,
-                    input,
-                    cursor,
-                });
-            }
-        },
     }
 
     Ok(())
@@ -634,26 +543,6 @@ fn clear_completed(app: &mut App) -> Result<()> {
     Ok(())
 }
 
-fn create_task_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
-    let board_name = board::normalize_board_name(board);
-    app.taskbook
-        .create_task_direct(vec![board_name.clone()], input.to_string(), 1)?;
-    app.refresh_items()?;
-    let display = board::display_name(&board_name);
-    app.set_status(format!("Task created in {}", display), StatusKind::Success);
-    Ok(())
-}
-
-fn create_note_in_board(app: &mut App, board: &str, input: &str) -> Result<()> {
-    let board_name = board::normalize_board_name(board);
-    app.taskbook
-        .create_note_direct(vec![board_name.clone()], input.to_string())?;
-    app.refresh_items()?;
-    let display = board::display_name(&board_name);
-    app.set_status(format!("Note created in {}", display), StatusKind::Success);
-    Ok(())
-}
-
 fn rename_board(app: &mut App, old_name: &str, new_name: &str) -> Result<()> {
     let new_board = board::normalize_board_name(new_name);
     let count = app.taskbook.rename_board_silent(old_name, &new_board)?;
@@ -696,7 +585,7 @@ fn edit_note_external(app: &mut App, id: u64) -> Result<()> {
     // Open external editor
     let content = editor::edit_existing_note_in_editor(&title, body.as_deref());
 
-    // Resume TUI (this also happens on drop, but explicit is clearer)
+    // Resume TUI
     guard.resume()?;
 
     // After suspend/resume, ratatui's internal buffer is stale — force full redraw
@@ -704,7 +593,6 @@ fn edit_note_external(app: &mut App, id: u64) -> Result<()> {
 
     match content? {
         Some(note_content) => {
-            // Update both title and body
             app.taskbook
                 .edit_description_silent(id, &note_content.title)?;
             app.taskbook.edit_note_body_silent(id, note_content.body)?;
