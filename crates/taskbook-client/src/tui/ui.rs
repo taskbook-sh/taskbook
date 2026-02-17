@@ -10,7 +10,8 @@ use super::app::{App, PopupState, ViewMode};
 use super::widgets::{
     board_picker::render_board_picker, board_view::render_board_view,
     help_popup::render_help_popup, input_dialog::render_input_dialog,
-    status_bar::render_status_bar, timeline_view::render_timeline_view,
+    journal_view::render_journal_view, status_bar::render_status_bar,
+    timeline_view::render_timeline_view,
 };
 
 /// Render the entire UI
@@ -39,6 +40,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         ViewMode::Board => "Board View",
         ViewMode::Timeline => "Timeline View",
         ViewMode::Archive => "Archive View",
+        ViewMode::Journal => "Journal View",
     };
 
     let mut spans = vec![
@@ -79,6 +81,7 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect) {
                 "No tasks or notes. Press 't' to create a task or 'n' to create a note."
             }
             ViewMode::Timeline => "No tasks or notes.",
+            ViewMode::Journal => "Journal is empty.",
             ViewMode::Archive => "Archive is empty.",
         };
         let paragraph = Paragraph::new(empty_msg)
@@ -91,6 +94,7 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect) {
     match app.view {
         ViewMode::Board => render_board_view(frame, app, inner),
         ViewMode::Timeline | ViewMode::Archive => render_timeline_view(frame, app, inner),
+        ViewMode::Journal => render_journal_view(frame, app, inner),
     }
 }
 

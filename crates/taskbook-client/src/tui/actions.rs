@@ -74,6 +74,10 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
             app.clear_board_filter();
             app.set_view(ViewMode::Archive)?;
         }
+        KeyCode::Char('4') => {
+            app.clear_board_filter();
+            app.set_view(ViewMode::Journal)?;
+        }
 
         // Help
         KeyCode::Char('?') => {
@@ -694,6 +698,9 @@ fn edit_note_external(app: &mut App, id: u64) -> Result<()> {
 
     // Resume TUI (this also happens on drop, but explicit is clearer)
     guard.resume()?;
+
+    // After suspend/resume, ratatui's internal buffer is stale — force full redraw
+    app.needs_full_redraw = true;
 
     match content? {
         Some(note_content) => {

@@ -58,7 +58,7 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 
     // Keybindings line
     let keybindings = match app.view {
-        ViewMode::Board | ViewMode::Timeline => {
+        ViewMode::Board | ViewMode::Timeline | ViewMode::Journal => {
             vec![
                 ("?", "Help"),
                 ("t", "Task"),

@@ -77,6 +77,8 @@ pub struct App {
     pub display_order: Vec<u64>,
     /// Cached statistics (recalculated on refresh)
     cached_stats: Stats,
+    /// Flag to request a full terminal redraw (e.g. after suspend/resume)
+    pub needs_full_redraw: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +86,7 @@ pub enum ViewMode {
     Board,
     Timeline,
     Archive,
+    Journal,
 }
 
 #[derive(Debug, Clone)]
@@ -189,6 +192,7 @@ impl App {
             sort_method: config.sort_method,
             config,
             display_order: Vec::new(),
+            needs_full_redraw: false,
             cached_stats: Stats {
                 percent: 0,
                 complete: 0,
@@ -306,6 +310,22 @@ impl App {
             }
             ViewMode::Timeline | ViewMode::Archive => {
                 // Order by date (newest first), then by ID
+                let mut items: Vec<_> = self
+                    .items
+                    .values()
+                    .filter(|item| self.should_show_item(item))
+                    .collect();
+                items.sort_by(|a, b| {
+                    b.timestamp()
+                        .cmp(&a.timestamp())
+                        .then_with(|| a.id().cmp(&b.id()))
+                });
+                for item in items {
+                    self.display_order.push(item.id());
+                }
+            }
+            ViewMode::Journal => {
+                // Order by date (newest first like timeline), then by ID
                 let mut items: Vec<_> = self
                     .items
                     .values()

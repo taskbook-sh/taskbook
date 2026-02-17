@@ -23,6 +23,17 @@ Examples:
 EOF
 }
 
+# --------------- helper functions ---------------
+run_sed() {
+  local pattern="$1"
+  local file="$2"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "$pattern" "$file"
+  else
+    sed -i "$pattern" "$file"
+  fi
+}
+
 # --------------- parse flags ---------------
 DRY_RUN=false
 while [[ $# -gt 0 ]]; do
@@ -60,15 +71,24 @@ if git -C "$REPO_ROOT" rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
   exit 1
 fi
 
+echo "Detecting default branch..."
+TARGET_BRANCH=$(git -C "$REPO_ROOT" remote show "${REMOTE}" | grep 'HEAD branch' | cut -d' ' -f5)
+TARGET_BRANCH="${TARGET_BRANCH:-master}"
+echo "  Default branch is '${TARGET_BRANCH}'"
+
 CURRENT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
-if [[ "$CURRENT_BRANCH" != "master" ]]; then
-  echo "Error: must be on master branch (currently on '${CURRENT_BRANCH}')." >&2
+if [[ "$CURRENT_BRANCH" != "$TARGET_BRANCH" ]]; then
+  echo "Error: must be on $TARGET_BRANCH branch (currently on '${CURRENT_BRANCH}')." >&2
   exit 1
 fi
 
 # --------------- pull latest ---------------
-echo "Pulling latest master ..."
-git -C "$REPO_ROOT" pull "${REMOTE}" master
+if [[ "$DRY_RUN" == true ]]; then
+  echo "Dry-run: skipping pull."
+else
+  echo "Pulling latest $TARGET_BRANCH ..."
+  git -C "$REPO_ROOT" pull "${REMOTE}" "$TARGET_BRANCH"
+fi
 
 # --------------- update versions ---------------
 echo "Bumping versions to ${VERSION} ..."
@@ -77,25 +97,42 @@ for toml in \
   "$REPO_ROOT/crates/taskbook-common/Cargo.toml" \
   "$REPO_ROOT/crates/taskbook-client/Cargo.toml" \
   "$REPO_ROOT/crates/taskbook-server/Cargo.toml"; do
-  sed -i '' "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" "$toml"
+  run_sed "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" "$toml"
   echo "  updated $(basename "$(dirname "$toml")")/Cargo.toml"
 done
 
-sed -i '' "s/version = \"[^\"]*\";/version = \"${VERSION}\";/" "$REPO_ROOT/overlay.nix"
+run_sed "s/version = \"[^\"]*\";/version = \"${VERSION}\";/" "$REPO_ROOT/overlay.nix"
 echo "  updated overlay.nix"
 
 # k8s/deployment.yaml (gitignored — update for local use)
 DEPLOYMENT="$REPO_ROOT/k8s/deployment.yaml"
 if [[ -f "$DEPLOYMENT" ]]; then
-  sed -i '' "s|image: ghcr.io/taskbook-sh/taskbook-server:[^ ]*|image: ghcr.io/taskbook-sh/taskbook-server:${VERSION}|" "$DEPLOYMENT"
+  run_sed "s|image: ghcr.io/taskbook-sh/taskbook-server:[^ ]*|image: ghcr.io/taskbook-sh/taskbook-server:${VERSION}|" "$DEPLOYMENT"
   echo "  updated k8s/deployment.yaml (local only, gitignored)"
 fi
 
 # --------------- verify build ---------------
-echo "Running cargo check ..."
+echo "Updating Cargo.lock and verifying build ..."
+(cd "$REPO_ROOT" && cargo metadata --format-version 1 >/dev/null)
 (cd "$REPO_ROOT" && cargo check --workspace)
 
 # --------------- commit and tag ---------------
+if [[ "$DRY_RUN" == true ]]; then
+  echo "Dry-run: skipping commit and tag."
+  
+  # Clean up changes to Cargo.lock, Cargo.toml, overlay.nix
+  echo "Dry-run: reverting changes..."
+  git -C "$REPO_ROOT" checkout \
+    crates/taskbook-common/Cargo.toml \
+    crates/taskbook-client/Cargo.toml \
+    crates/taskbook-server/Cargo.toml \
+    overlay.nix \
+    Cargo.lock
+    
+  echo "Dry-run completed successfully. No changes were applied."
+  exit 0
+fi
+
 git -C "$REPO_ROOT" add \
   crates/taskbook-common/Cargo.toml \
   crates/taskbook-client/Cargo.toml \
@@ -109,16 +146,8 @@ git -C "$REPO_ROOT" tag "${TAG}"
 echo "Created commit and tag ${TAG}."
 
 # --------------- push ---------------
-if [[ "$DRY_RUN" == true ]]; then
-  echo ""
-  echo "Dry-run mode: skipping push."
-  echo "To finish:"
-  echo "  git push ${REMOTE} master ${TAG}"
-  exit 0
-fi
-
-git -C "$REPO_ROOT" push "${REMOTE}" master "${TAG}"
-echo "Pushed master and tag ${TAG} to ${REMOTE}. Release workflow should start shortly."
+git -C "$REPO_ROOT" push "${REMOTE}" "${TARGET_BRANCH}" "${TAG}"
+echo "Pushed ${TARGET_BRANCH} and tag ${TAG} to ${REMOTE}. Release workflow should start shortly."
 
 # --------------- update overlay.nix hashes ---------------
 echo ""
@@ -159,6 +188,8 @@ TARBALLS=(
 for tarball in "${TARBALLS[@]}"; do
   gh release download "${TAG}" --pattern "${tarball}" --dir "$HASH_TMPDIR"
   hash="sha256-$(openssl dgst -sha256 -binary "${HASH_TMPDIR}/${tarball}" | base64 | tr -d '\n')"
+  
+  # Update hash in overlay.nix using a temp file
   awk -v name="${tarball}" -v newhash="${hash}" '
     $0 ~ name { found=1 }
     found && /hash = "/ {
@@ -173,5 +204,5 @@ done
 
 git -C "$REPO_ROOT" add overlay.nix
 git -C "$REPO_ROOT" commit -m "Update overlay.nix hashes for ${TAG}"
-git -C "$REPO_ROOT" push "${REMOTE}" master
-echo "Pushed updated overlay.nix hashes to master."
+git -C "$REPO_ROOT" push "${REMOTE}" "${TARGET_BRANCH}"
+echo "Pushed updated overlay.nix hashes to ${TARGET_BRANCH}."
