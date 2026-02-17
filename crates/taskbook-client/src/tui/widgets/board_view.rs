@@ -5,7 +5,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::app::App;
+use crate::tui::app::{sort_items_by, App};
 use taskbook_common::board;
 use taskbook_common::StorageItem;
 
@@ -74,9 +74,9 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
         ]));
         item_line_map.push(None);
 
-        // Sort items by ID
+        // Sort items using configured method
         let mut sorted_items = visible_items;
-        sorted_items.sort_by_key(|item| item.id());
+        sort_items_by(&mut sorted_items, app.sort_method);
 
         for item in sorted_items {
             let is_selected = app.selected_id() == Some(item.id());

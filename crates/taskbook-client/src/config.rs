@@ -159,6 +159,39 @@ impl ThemeConfig {
     }
 }
 
+/// Sort method for items within boards
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SortMethod {
+    /// Sort by item ID (creation order)
+    #[default]
+    Id,
+    /// Sort by priority (high first), then ID
+    Priority,
+    /// Sort by status (pending, in-progress, done), then ID
+    Status,
+}
+
+impl SortMethod {
+    /// Cycle to the next sort method
+    pub fn next(self) -> Self {
+        match self {
+            SortMethod::Id => SortMethod::Priority,
+            SortMethod::Priority => SortMethod::Status,
+            SortMethod::Status => SortMethod::Id,
+        }
+    }
+
+    /// Display name for the sort method
+    pub fn display_name(self) -> &'static str {
+        match self {
+            SortMethod::Id => "ID",
+            SortMethod::Priority => "Priority",
+            SortMethod::Status => "Status",
+        }
+    }
+}
+
 /// Sync configuration for remote server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -201,6 +234,9 @@ pub struct Config {
 
     #[serde(default)]
     pub sync: SyncConfig,
+
+    #[serde(default)]
+    pub sort_method: SortMethod,
 }
 
 fn default_taskbook_directory() -> String {
@@ -219,6 +255,7 @@ impl Default for Config {
             display_progress_overview: true,
             theme: ThemeConfig::default(),
             sync: SyncConfig::default(),
+            sort_method: SortMethod::default(),
         }
     }
 }

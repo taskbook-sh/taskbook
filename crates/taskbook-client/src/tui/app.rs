@@ -2,12 +2,48 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use crate::config::Config;
+use crate::config::{Config, SortMethod};
 use crate::error::Result;
 use crate::render::Stats;
 use crate::taskbook::Taskbook;
 use taskbook_common::board;
 use taskbook_common::StorageItem;
+
+/// Sort items by the given method
+pub fn sort_items_by(items: &mut [&StorageItem], method: SortMethod) {
+    match method {
+        SortMethod::Id => {
+            items.sort_by_key(|item| item.id());
+        }
+        SortMethod::Priority => {
+            items.sort_by(|a, b| {
+                let pa = a.as_task().map(|t| t.priority).unwrap_or(0);
+                let pb = b.as_task().map(|t| t.priority).unwrap_or(0);
+                pb.cmp(&pa).then_with(|| a.id().cmp(&b.id()))
+            });
+        }
+        SortMethod::Status => {
+            items.sort_by(|a, b| {
+                let status_rank = |item: &StorageItem| -> u8 {
+                    if let Some(task) = item.as_task() {
+                        if task.is_complete {
+                            2
+                        } else if task.in_progress {
+                            1
+                        } else {
+                            0 // pending first
+                        }
+                    } else {
+                        3 // notes last
+                    }
+                };
+                status_rank(a)
+                    .cmp(&status_rank(b))
+                    .then_with(|| a.id().cmp(&b.id()))
+            });
+        }
+    }
+}
 
 use super::theme::TuiTheme;
 
@@ -35,6 +71,8 @@ pub struct App {
     pub theme: TuiTheme,
     /// Configuration
     pub config: Config,
+    /// Current sort method for items within boards
+    pub sort_method: SortMethod,
     /// Flat list of item IDs in display order (for navigation)
     pub display_order: Vec<u64>,
     /// Cached statistics (recalculated on refresh)
@@ -148,6 +186,7 @@ impl App {
             },
             running: true,
             theme,
+            sort_method: config.sort_method,
             config,
             display_order: Vec::new(),
             cached_stats: Stats {
@@ -257,7 +296,7 @@ impl App {
                                 && self.should_show_item(item)
                         })
                         .collect();
-                    board_items.sort_by_key(|item| item.id());
+                    sort_items_by(&mut board_items, self.sort_method);
                     for item in board_items {
                         if !self.display_order.contains(&item.id()) {
                             self.display_order.push(item.id());
@@ -282,6 +321,14 @@ impl App {
                 }
             }
         }
+    }
+
+    /// Cycle through sort methods and persist to config
+    pub fn cycle_sort_method(&mut self) {
+        self.sort_method = self.sort_method.next();
+        self.config.sort_method = self.sort_method;
+        let _ = self.config.save();
+        self.update_display_order();
     }
 
     /// Toggle hide completed tasks
