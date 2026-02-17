@@ -83,8 +83,12 @@ if [[ "$CURRENT_BRANCH" != "$TARGET_BRANCH" ]]; then
 fi
 
 # --------------- pull latest ---------------
-echo "Pulling latest $TARGET_BRANCH ..."
-git -C "$REPO_ROOT" pull "${REMOTE}" "$TARGET_BRANCH"
+if [[ "$DRY_RUN" == true ]]; then
+  echo "Dry-run: skipping pull."
+else
+  echo "Pulling latest $TARGET_BRANCH ..."
+  git -C "$REPO_ROOT" pull "${REMOTE}" "$TARGET_BRANCH"
+fi
 
 # --------------- update versions ---------------
 echo "Bumping versions to ${VERSION} ..."
@@ -113,6 +117,22 @@ echo "Updating Cargo.lock and verifying build ..."
 (cd "$REPO_ROOT" && cargo check --workspace)
 
 # --------------- commit and tag ---------------
+if [[ "$DRY_RUN" == true ]]; then
+  echo "Dry-run: skipping commit and tag."
+  
+  # Clean up changes to Cargo.lock, Cargo.toml, overlay.nix
+  echo "Dry-run: reverting changes..."
+  git -C "$REPO_ROOT" checkout \
+    crates/taskbook-common/Cargo.toml \
+    crates/taskbook-client/Cargo.toml \
+    crates/taskbook-server/Cargo.toml \
+    overlay.nix \
+    Cargo.lock
+    
+  echo "Dry-run completed successfully. No changes were applied."
+  exit 0
+fi
+
 git -C "$REPO_ROOT" add \
   crates/taskbook-common/Cargo.toml \
   crates/taskbook-client/Cargo.toml \
@@ -126,14 +146,6 @@ git -C "$REPO_ROOT" tag "${TAG}"
 echo "Created commit and tag ${TAG}."
 
 # --------------- push ---------------
-if [[ "$DRY_RUN" == true ]]; then
-  echo ""
-  echo "Dry-run mode: skipping push."
-  echo "To finish:"
-  echo "  git push ${REMOTE} ${TARGET_BRANCH} ${TAG}"
-  exit 0
-fi
-
 git -C "$REPO_ROOT" push "${REMOTE}" "${TARGET_BRANCH}" "${TAG}"
 echo "Pushed ${TARGET_BRANCH} and tag ${TAG} to ${REMOTE}. Release workflow should start shortly."
 
