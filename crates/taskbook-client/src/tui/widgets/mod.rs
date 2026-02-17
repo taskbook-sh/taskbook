@@ -5,3 +5,4 @@ pub mod input_dialog;
 pub mod item_row;
 pub mod status_bar;
 pub mod timeline_view;
+pub mod journal_view;

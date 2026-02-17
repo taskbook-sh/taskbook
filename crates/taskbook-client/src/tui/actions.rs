@@ -74,6 +74,10 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
             app.clear_board_filter();
             app.set_view(ViewMode::Archive)?;
         }
+        KeyCode::Char('4') => {
+            app.clear_board_filter();
+            app.set_view(ViewMode::Journal)?;
+        }
 
         // Help
         KeyCode::Char('?') => {

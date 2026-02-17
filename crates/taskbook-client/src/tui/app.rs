@@ -84,6 +84,7 @@ pub enum ViewMode {
     Board,
     Timeline,
     Archive,
+    Journal,
 }
 
 #[derive(Debug, Clone)]
@@ -306,6 +307,22 @@ impl App {
             }
             ViewMode::Timeline | ViewMode::Archive => {
                 // Order by date (newest first), then by ID
+                let mut items: Vec<_> = self
+                    .items
+                    .values()
+                    .filter(|item| self.should_show_item(item))
+                    .collect();
+                items.sort_by(|a, b| {
+                    b.timestamp()
+                        .cmp(&a.timestamp())
+                        .then_with(|| a.id().cmp(&b.id()))
+                });
+                for item in items {
+                    self.display_order.push(item.id());
+                }
+            }
+            ViewMode::Journal => {
+                // Order by date (newest first like timeline), then by ID
                 let mut items: Vec<_> = self
                     .items
                     .values()

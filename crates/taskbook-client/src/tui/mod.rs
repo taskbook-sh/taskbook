@@ -144,7 +144,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> 
                         app.items = app.taskbook.get_all_archive_items()?;
                         app.update_display_order();
                     }
-                    (ViewMode::Board | ViewMode::Timeline, false) => {
+                    (ViewMode::Board | ViewMode::Timeline | ViewMode::Journal, false) => {
                         app.refresh_items()?;
                     }
                     _ => {} // Data will be loaded when user switches views

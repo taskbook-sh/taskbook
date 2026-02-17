@@ -9,7 +9,7 @@ use crate::tui::app::App;
 use crate::tui::ui::centered_rect;
 
 pub fn render_help_popup(frame: &mut Frame, app: &App) {
-    let area = centered_rect(50, 33, frame.area());
+    let area = centered_rect(50, 34, frame.area());
 
     let block = Block::default()
         .title(" Keybindings ")
@@ -103,6 +103,10 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
         Line::from(vec![
             Span::styled("    3       ", key_style),
             Span::styled("Archive view", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    4       ", key_style),
+            Span::styled("Journal view", desc_style),
         ]),
         Line::from(vec![
             Span::styled("    S       ", key_style),
