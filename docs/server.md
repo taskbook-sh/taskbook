@@ -55,6 +55,7 @@ The server is configured entirely via environment variables:
 | `TB_HOST` | No | `0.0.0.0` | Server bind address |
 | `TB_PORT` | No | `8080` | Server port |
 | `TB_SESSION_EXPIRY_DAYS` | No | `30` | Session token lifetime in days |
+| `TB_CORS_ORIGINS` | No | (none) | Allowed CORS origins, comma-separated |
 | `RUST_LOG` | No | `info` | Log level (trace, debug, info, warn, error) |
 
 ### 3. Run the Server
@@ -144,6 +145,9 @@ The server exposes the following REST API:
 | `POST` | `/api/v1/register` | Create new account |
 | `POST` | `/api/v1/login` | Login and get session token |
 | `DELETE` | `/api/v1/logout` | Invalidate session |
+| `GET` | `/api/v1/me` | Get current user info |
+
+Registration and login endpoints are rate-limited to 10 requests per IP per 60 seconds.
 
 ### Items
 
@@ -152,9 +156,19 @@ All item endpoints require `Authorization: Bearer <token>` header.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/v1/items` | Get all active items |
-| `PUT` | `/api/v1/items` | Replace all active items |
+| `PUT` | `/api/v1/items` | Replace all active items (max 10,000 items) |
 | `GET` | `/api/v1/items/archive` | Get archived items |
-| `PUT` | `/api/v1/items/archive` | Replace archived items |
+| `PUT` | `/api/v1/items/archive` | Replace archived items (max 10,000 items) |
+
+Request body size is limited to 10 MB.
+
+### Real-time Sync
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/events` | SSE stream for real-time sync notifications |
+
+The events endpoint provides Server-Sent Events (SSE) that notify connected clients when data changes. Events include a `data_changed` event type with either `"items"` or `"archive"` as the data payload. The server sends keep-alive pings every 15 seconds.
 
 ### Health
 
@@ -169,33 +183,38 @@ The server creates these tables automatically:
 ```sql
 -- User accounts
 CREATE TABLE users (
-    id          UUID PRIMARY KEY,
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username    VARCHAR(64) UNIQUE NOT NULL,
     email       VARCHAR(255) UNIQUE NOT NULL,
     password    TEXT NOT NULL,  -- Argon2id hash
-    created_at  TIMESTAMPTZ NOT NULL
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Session tokens
 CREATE TABLE sessions (
-    id          UUID PRIMARY KEY,
-    user_id     UUID NOT NULL REFERENCES users(id),
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token       VARCHAR(128) UNIQUE NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at  TIMESTAMPTZ NOT NULL
 );
 
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+
 -- Encrypted items
 CREATE TABLE items (
-    id          UUID PRIMARY KEY,
-    user_id     UUID NOT NULL REFERENCES users(id),
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     item_key    VARCHAR(64) NOT NULL,
     data        BYTEA NOT NULL,     -- Encrypted JSON
     nonce       BYTEA NOT NULL,     -- AES-GCM nonce
-    archived    BOOLEAN NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    updated_at  TIMESTAMPTZ NOT NULL
+    archived    BOOLEAN NOT NULL DEFAULT false,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(user_id, item_key, archived)
 );
+
+CREATE INDEX idx_items_user ON items(user_id, archived);
 ```
 
 ## Security Considerations
@@ -207,11 +226,18 @@ CREATE TABLE items (
 - The server never sees the encryption key or plaintext data
 - Only the item ID and metadata (archived status, timestamps) are visible to the server
 
+### Rate Limiting
+
+- Registration and login endpoints are rate-limited per IP address
+- 10 requests per 60-second sliding window
+- Returns HTTP 429 (Too Many Requests) when exceeded
+
 ### Authentication
 
 - Passwords are hashed using Argon2id
-- Session tokens are random 128-character strings
+- Session tokens are cryptographically random 256-bit values (base64url-encoded)
 - Tokens expire after configurable number of days (default 30)
+- User deletion cascades to sessions and items
 
 ### Network
 

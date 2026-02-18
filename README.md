@@ -37,6 +37,8 @@ tb --task "Description"     # Create task
 tb --task @board "Desc"     # Create task in specific board
 tb --task "Desc" p:2        # Create with priority (1=normal, 2=medium, 3=high)
 tb --note "Description"     # Create note
+tb --note                   # Create note in external editor
+tb --edit-note @<id>        # Edit note in external editor
 tb --check <id> [id...]     # Toggle task complete
 tb --begin <id> [id...]     # Toggle task in-progress
 tb --star <id> [id...]      # Toggle starred

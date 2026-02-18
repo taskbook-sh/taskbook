@@ -70,13 +70,17 @@ tb --task @work @urgent "Deploy hotfix" p:3
 ```bash
 tb --note <description>
 tb -n <description>
+tb --note
 ```
 
 Creates a note. Notes are for reference and cannot be checked off.
 
+When called without a description, opens your external editor (`$EDITOR` or `$VISUAL`, falling back to `vi`) to compose a note with a title and optional body. Lines starting with `//` are treated as comments and ignored. Delete all content to cancel.
+
 ```bash
 tb --note "API endpoint: https://api.example.com"
 tb --note @meetings "Standup at 9am daily"
+tb --note                   # Opens editor for multi-line note
 ```
 
 ## Modifying Items
@@ -134,6 +138,18 @@ Edits an item's description. The ID must be prefixed with `@`.
 
 ```bash
 tb --edit @3 "Updated task description"
+```
+
+### Edit Note in Editor
+
+```bash
+tb --edit-note @<id>
+```
+
+Opens a note in your external editor (`$EDITOR` or `$VISUAL`, falling back to `vi`) for editing both the title and body. The first non-comment line becomes the title, and remaining lines become the body. Lines starting with `//` are comments and ignored. Delete all content to cancel.
+
+```bash
+tb --edit-note @5
 ```
 
 ### Set Priority
@@ -358,7 +374,7 @@ tb --task "Work item"
 tb --cli
 ```
 
-Runs in non-interactive CLI mode (disables TUI features).
+Runs in non-interactive CLI mode, printing output to stdout instead of launching the interactive TUI. Useful for scripting or piping output.
 
 ### Help
 

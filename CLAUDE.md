@@ -63,6 +63,7 @@ crates/
 │       ├── config.rs       # ~/.taskbook.json configuration (with sync section)
 │       ├── directory.rs    # Taskbook directory resolution
 │       ├── render.rs       # Terminal output with colored formatting
+│       ├── editor.rs       # External editor support for notes
 │       ├── error.rs        # Error types using thiserror
 │       ├── storage/
 │       │   ├── mod.rs      # StorageBackend trait
@@ -79,12 +80,15 @@ crates/
         ├── auth.rs         # Argon2id password hashing
         ├── error.rs        # ServerError → HTTP response mapping
         ├── middleware.rs    # Auth middleware (Bearer token extraction)
+        ├── rate_limit.rs   # Per-IP sliding window rate limiter
         ├── handlers/
         │   ├── user.rs     # POST /register, POST /login, DELETE /logout, GET /me
         │   ├── items.rs    # GET/PUT /items, GET/PUT /items/archive
+        │   ├── events.rs   # GET /events (SSE real-time sync notifications)
         │   └── health.rs   # GET /health
         └── migrations/
-            └── 001_initial.sql  # Users, sessions, items tables
+            ├── 001_initial.sql          # Users, sessions, items tables
+            └── 002_add_session_index.sql # Session lookup index
 ```
 
 ### Key Design Decisions
@@ -121,12 +125,14 @@ tb --task "Description"     # Create task
 tb --task @board "Desc"     # Create task in specific board
 tb --task "Desc" p:2        # Create with priority (1=normal, 2=medium, 3=high)
 tb --note "Description"     # Create note
+tb --note                   # Create note in external editor ($EDITOR)
 tb --check <id> [id...]     # Toggle task complete
 tb --begin <id> [id...]     # Toggle task in-progress
 tb --star <id> [id...]      # Toggle starred
 tb --delete <id> [id...]    # Delete to archive
 tb --restore <id> [id...]   # Restore from archive
 tb --edit @<id> "New desc"  # Edit description
+tb --edit-note @<id>        # Edit note in external editor ($EDITOR)
 tb --move @<id> board       # Move to board
 tb --priority @<id> <1-3>   # Set priority
 tb --find <term>            # Search items
@@ -142,6 +148,9 @@ tb --login --server <url> --username <name> --password <pass> --key <base64>
 tb --logout
 tb --status
 tb --migrate                # Push local data to server
+
+# Mode
+tb --cli                    # Force non-interactive CLI mode
 ```
 
 ## Server Configuration
@@ -151,15 +160,26 @@ The server reads configuration from environment variables:
 ```bash
 TB_HOST=0.0.0.0              # Listen address
 TB_PORT=8080                  # Listen port
-TB_DATABASE_URL=postgres://user:pass@localhost/taskbook
-TB_SESSION_EXPIRY_DAYS=30     # Session token expiry
+TB_DB_HOST=localhost          # Database hostname
+TB_DB_PORT=5432               # Database port (default: 5432)
+TB_DB_NAME=taskbook           # Database name
+TB_DB_USER=postgres           # Database username
+TB_DB_PASSWORD=secret         # Database password
+TB_SESSION_EXPIRY_DAYS=30     # Session token expiry (default: 30)
+TB_CORS_ORIGINS=              # Allowed CORS origins, comma-separated
+RUST_LOG=info                 # Log level (trace, debug, info, warn, error)
 ```
 
 ### Running with Docker
 
 ```bash
 docker build -f Dockerfile.server -t tb-server .
-docker run -p 8080:8080 -e TB_DATABASE_URL=postgres://... tb-server
+docker run -p 8080:8080 \
+  -e TB_DB_HOST=host.docker.internal \
+  -e TB_DB_NAME=taskbook \
+  -e TB_DB_USER=postgres \
+  -e TB_DB_PASSWORD=secret \
+  tb-server
 ```
 
 ## API Endpoints
@@ -177,6 +197,7 @@ All under `/api/v1/`:
 | PUT | /items | Yes | Replace all items |
 | GET | /items/archive | Yes | Get encrypted archive |
 | PUT | /items/archive | Yes | Replace all archived items |
+| GET | /events | Yes | SSE stream for real-time sync notifications |
 
 ## Dependencies
 
@@ -192,6 +213,8 @@ All under `/api/v1/`:
 - `ratatui` / `crossterm` - Terminal UI
 - `reqwest` - HTTP client for server sync
 - `base64` - Encoding encrypted data
+- `rpassword` - Secure password input
+- `fs2` - File locking for local storage
 
 ### Common (taskbook-common)
 - `aes-gcm` - AES-256-GCM encryption
@@ -201,8 +224,9 @@ All under `/api/v1/`:
 - `axum` - HTTP framework
 - `sqlx` - PostgreSQL async driver with migrations
 - `argon2` - Password hashing (Argon2id)
-- `tower-http` - HTTP middleware (CORS, tracing)
+- `tower-http` - HTTP middleware (CORS, tracing, body limits)
 - `tracing` / `tracing-subscriber` - Structured logging
+- `tokio-stream` / `futures-util` - SSE event streaming
 
 ## Testing Notes
 

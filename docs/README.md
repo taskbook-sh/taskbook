@@ -36,14 +36,17 @@ tb --begin 2
 
 ## Features
 
-- **Tasks & Notes**: Create tasks with priorities and notes for reference
+- **Tasks & Notes**: Create tasks with priorities and notes with rich body content
 - **Boards**: Organize items into custom boards
+- **Interactive TUI**: Full-featured terminal UI with keyboard navigation
+- **External Editor**: Compose and edit notes in your preferred editor (`$EDITOR`)
 - **Timeline View**: See items chronologically
 - **Search & Filter**: Find items by text or attributes
+- **Sortable Boards**: Sort by ID, priority, or status
 - **Archive**: Soft-delete with restore capability
 - **Clipboard**: Copy item descriptions
 - **Themes**: Customizable color schemes including Catppuccin
-- **Server Sync**: Optional encrypted sync across devices
+- **Server Sync**: Optional encrypted sync with real-time SSE notifications
 - **End-to-End Encryption**: Your data is encrypted client-side with AES-256-GCM
 
 ## Architecture

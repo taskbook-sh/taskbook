@@ -10,6 +10,7 @@ Client configuration is stored in `~/.taskbook.json`. The file is created automa
   "displayCompleteTasks": true,
   "displayProgressOverview": true,
   "theme": "default",
+  "sortMethod": "id",
   "sync": {
     "enabled": false,
     "serverUrl": "http://localhost:8080"
@@ -126,6 +127,25 @@ Define custom RGB colors for each element:
 | `pending` | Pending task icons and counts |
 | `starred` | Star indicators |
 
+### sortMethod
+
+**Type**: `string`
+**Default**: `"id"`
+
+Sort method for items within boards. Can be cycled in the TUI with a keybinding.
+
+| Value | Description |
+|-------|-------------|
+| `id` | Sort by item ID (creation order) |
+| `priority` | Sort by priority (high first), then ID |
+| `status` | Sort by status (pending, in-progress, done), then ID |
+
+```json
+{
+  "sortMethod": "priority"
+}
+```
+
 ### sync
 
 **Type**: `object`
@@ -156,6 +176,7 @@ See [Sync & Encryption](sync.md) for setup instructions.
 | Variable | Description |
 |----------|-------------|
 | `TASKBOOK_DIR` | Override taskbook data directory |
+| `EDITOR` | External editor for `--note` and `--edit-note` (falls back to `VISUAL`, then `vi`) |
 
 ## Data Storage
 
