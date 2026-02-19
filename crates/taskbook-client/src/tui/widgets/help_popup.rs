@@ -102,6 +102,10 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
             Span::styled("@board Description p:2", desc_style),
         ]),
         Line::from(vec![
+            Span::styled("             ", cmd_style),
+            Span::styled("@\"board name\" for spaces", desc_style),
+        ]),
+        Line::from(vec![
             Span::styled("    /note    ", cmd_style),
             Span::styled("@board Title", desc_style),
         ]),

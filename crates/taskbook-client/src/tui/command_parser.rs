@@ -118,14 +118,20 @@ fn parse_task(args: &str) -> Result<ParsedCommand, ParseError> {
         });
     }
 
-    let mut board = None;
+    let (board, rest) = if args.starts_with('@') {
+        match extract_at_board(args) {
+            Some((name, remaining)) => (Some(name), remaining.to_string()),
+            None => (None, args.to_string()),
+        }
+    } else {
+        (None, args.to_string())
+    };
+
     let mut priority = 1u8;
     let mut desc_parts = Vec::new();
 
-    for token in args.split_whitespace() {
-        if token.starts_with('@') && board.is_none() {
-            board = Some(token[1..].to_string());
-        } else if let Some(p) = token.strip_prefix("p:") {
+    for token in rest.split_whitespace() {
+        if let Some(p) = token.strip_prefix("p:") {
             if let Ok(v) = p.parse::<u8>() {
                 if (1..=3).contains(&v) {
                     priority = v;
@@ -158,18 +164,16 @@ fn parse_note(args: &str) -> Result<ParsedCommand, ParseError> {
         });
     }
 
-    let mut board = None;
-    let mut desc_parts = Vec::new();
-
-    for token in args.split_whitespace() {
-        if token.starts_with('@') && board.is_none() {
-            board = Some(token[1..].to_string());
-        } else {
-            desc_parts.push(token);
+    let (board, rest) = if args.starts_with('@') {
+        match extract_at_board(args) {
+            Some((name, remaining)) => (Some(name), remaining.to_string()),
+            None => (None, args.to_string()),
         }
-    }
+    } else {
+        (None, args.to_string())
+    };
 
-    let description = desc_parts.join(" ");
+    let description = rest.trim().to_string();
     if description.is_empty() {
         return Err(ParseError {
             message: "Note title cannot be empty".to_string(),
@@ -201,18 +205,39 @@ fn parse_edit(args: &str) -> Result<ParsedCommand, ParseError> {
 
 fn parse_move(args: &str) -> Result<ParsedCommand, ParseError> {
     let args = args.trim();
-    let tokens: Vec<&str> = args.split_whitespace().collect();
-    if tokens.len() < 2 {
+
+    // Extract the ID (first token)
+    let id_end = args.find(char::is_whitespace).ok_or(ParseError {
+        message: "Usage: /move @<id> @<board>".to_string(),
+    })?;
+
+    let id_token = &args[..id_end];
+    let rest = args[id_end..].trim();
+
+    let id = parse_at_id(id_token)?;
+
+    if rest.is_empty() {
         return Err(ParseError {
             message: "Usage: /move @<id> @<board>".to_string(),
         });
     }
 
-    let id = parse_at_id(tokens[0])?;
-    let board = if tokens[1].starts_with('@') {
-        tokens[1][1..].to_string()
+    // Extract board name (supports @"quoted name")
+    let board = if rest.starts_with('@') {
+        match extract_at_board(rest) {
+            Some((name, _)) => name,
+            None => {
+                return Err(ParseError {
+                    message: "Board name cannot be empty".to_string(),
+                })
+            }
+        }
     } else {
-        tokens[1].to_string()
+        // Unquoted, no @ prefix — take first word
+        rest.split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_string()
     };
 
     if board.is_empty() {
@@ -249,23 +274,43 @@ fn parse_priority(args: &str) -> Result<ParsedCommand, ParseError> {
 
 fn parse_rename_board(args: &str) -> Result<ParsedCommand, ParseError> {
     let args = args.trim();
-    let tokens: Vec<&str> = args.split_whitespace().collect();
-    if tokens.len() < 2 {
+    if args.is_empty() {
         return Err(ParseError {
-            message: "Usage: /rename-board @old @new".to_string(),
+            message: "Usage: /rename-board @\"old name\" @\"new name\"".to_string(),
         });
     }
 
-    let old_name = if tokens[0].starts_with('@') {
-        tokens[0][1..].to_string()
+    // Extract old board name
+    let (old_name, rest) = if args.starts_with('@') {
+        match extract_at_board(args) {
+            Some((name, remaining)) => (name, remaining),
+            None => {
+                return Err(ParseError {
+                    message: "Usage: /rename-board @\"old name\" @\"new name\"".to_string(),
+                })
+            }
+        }
     } else {
-        tokens[0].to_string()
+        let end = args.find(char::is_whitespace).ok_or(ParseError {
+            message: "Usage: /rename-board @\"old name\" @\"new name\"".to_string(),
+        })?;
+        (args[..end].to_string(), &args[end..])
     };
 
-    let new_name = if tokens[1].starts_with('@') {
-        tokens[1][1..].to_string()
+    let rest = rest.trim();
+
+    // Extract new board name
+    let new_name = if rest.starts_with('@') {
+        match extract_at_board(rest) {
+            Some((name, _)) => name,
+            None => {
+                return Err(ParseError {
+                    message: "Board names cannot be empty".to_string(),
+                })
+            }
+        }
     } else {
-        tokens[1].to_string()
+        rest.to_string()
     };
 
     if old_name.is_empty() || new_name.is_empty() {
@@ -275,6 +320,50 @@ fn parse_rename_board(args: &str) -> Result<ParsedCommand, ParseError> {
     }
 
     Ok(ParsedCommand::RenameBoard { old_name, new_name })
+}
+
+/// Extract a board name from input starting with `@`.
+///
+/// Supports two forms:
+/// - `@board` — single word (up to next whitespace)
+/// - `@"board name"` — quoted, may contain spaces
+///
+/// Returns `(board_name, remaining_input)` on success.
+fn extract_at_board(input: &str) -> Option<(String, &str)> {
+    let input = input.trim_start();
+    if !input.starts_with('@') || input.len() < 2 {
+        return None;
+    }
+
+    let after_at = &input[1..]; // safe: '@' is ASCII
+
+    if let Some(after_quote) = after_at.strip_prefix('"') {
+        // Quoted: @"board name"
+        if let Some(end_quote) = after_quote.find('"') {
+            let board_name = &after_quote[..end_quote];
+            let remaining = &after_quote[end_quote + 1..];
+            if board_name.is_empty() {
+                return None;
+            }
+            Some((board_name.to_string(), remaining))
+        } else {
+            // No closing quote — treat rest of string as board name
+            if after_quote.is_empty() {
+                return None;
+            }
+            Some((after_quote.to_string(), ""))
+        }
+    } else {
+        // Unquoted: @word
+        let end = after_at
+            .find(char::is_whitespace)
+            .unwrap_or(after_at.len());
+        let board_name = &after_at[..end];
+        if board_name.is_empty() {
+            return None;
+        }
+        Some((board_name.to_string(), &after_at[end..]))
+    }
 }
 
 fn parse_at_id(token: &str) -> Result<u64, ParseError> {
@@ -303,4 +392,153 @@ fn parse_id_list(args: &str) -> Result<Vec<u64>, ParseError> {
     }
 
     Ok(ids)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_at_board_unquoted() {
+        let (name, rest) = extract_at_board("@coding rest").unwrap();
+        assert_eq!(name, "coding");
+        assert_eq!(rest.trim(), "rest");
+    }
+
+    #[test]
+    fn test_extract_at_board_quoted() {
+        let (name, rest) = extract_at_board("@\"MiST: IT-Leder\" rest").unwrap();
+        assert_eq!(name, "MiST: IT-Leder");
+        assert_eq!(rest.trim(), "rest");
+    }
+
+    #[test]
+    fn test_extract_at_board_quoted_no_remaining() {
+        let (name, rest) = extract_at_board("@\"My Board\"").unwrap();
+        assert_eq!(name, "My Board");
+        assert_eq!(rest, "");
+    }
+
+    #[test]
+    fn test_extract_at_board_empty_quoted() {
+        assert!(extract_at_board("@\"\"").is_none());
+    }
+
+    #[test]
+    fn test_extract_at_board_no_at() {
+        assert!(extract_at_board("coding").is_none());
+    }
+
+    #[test]
+    fn test_extract_at_board_just_at() {
+        assert!(extract_at_board("@").is_none());
+    }
+
+    #[test]
+    fn test_extract_at_board_unclosed_quote() {
+        let (name, rest) = extract_at_board("@\"unclosed board").unwrap();
+        assert_eq!(name, "unclosed board");
+        assert_eq!(rest, "");
+    }
+
+    #[test]
+    fn test_parse_task_quoted_board() {
+        let result = parse_command("/task @\"MiST: IT-Leder\" Fix the bug").unwrap();
+        match result {
+            ParsedCommand::Task {
+                board,
+                description,
+                priority,
+            } => {
+                assert_eq!(board.as_deref(), Some("MiST: IT-Leder"));
+                assert_eq!(description, "Fix the bug");
+                assert_eq!(priority, 1);
+            }
+            _ => panic!("Expected Task"),
+        }
+    }
+
+    #[test]
+    fn test_parse_task_quoted_board_with_priority() {
+        let result = parse_command("/task @\"Dev Ops\" Deploy service p:3").unwrap();
+        match result {
+            ParsedCommand::Task {
+                board,
+                description,
+                priority,
+            } => {
+                assert_eq!(board.as_deref(), Some("Dev Ops"));
+                assert_eq!(description, "Deploy service");
+                assert_eq!(priority, 3);
+            }
+            _ => panic!("Expected Task"),
+        }
+    }
+
+    #[test]
+    fn test_parse_task_unquoted_board() {
+        let result = parse_command("/task @coding Fix bug").unwrap();
+        match result {
+            ParsedCommand::Task {
+                board,
+                description,
+                ..
+            } => {
+                assert_eq!(board.as_deref(), Some("coding"));
+                assert_eq!(description, "Fix bug");
+            }
+            _ => panic!("Expected Task"),
+        }
+    }
+
+    #[test]
+    fn test_parse_note_quoted_board() {
+        let result = parse_command("/note @\"MiST: IT-Leder\" Important note").unwrap();
+        match result {
+            ParsedCommand::Note { board, description } => {
+                assert_eq!(board.as_deref(), Some("MiST: IT-Leder"));
+                assert_eq!(description, "Important note");
+            }
+            _ => panic!("Expected Note"),
+        }
+    }
+
+    #[test]
+    fn test_parse_move_quoted_board() {
+        let result = parse_command("/move @1 @\"MiST: IT-Leder\"").unwrap();
+        match result {
+            ParsedCommand::Move { id, board } => {
+                assert_eq!(id, 1);
+                assert_eq!(board, "MiST: IT-Leder");
+            }
+            _ => panic!("Expected Move"),
+        }
+    }
+
+    #[test]
+    fn test_parse_rename_board_quoted() {
+        let result =
+            parse_command("/rename-board @\"Old Board\" @\"New Board Name\"").unwrap();
+        match result {
+            ParsedCommand::RenameBoard { old_name, new_name } => {
+                assert_eq!(old_name, "Old Board");
+                assert_eq!(new_name, "New Board Name");
+            }
+            _ => panic!("Expected RenameBoard"),
+        }
+    }
+
+    #[test]
+    fn test_parse_task_no_board() {
+        let result = parse_command("/task Simple task").unwrap();
+        match result {
+            ParsedCommand::Task {
+                board, description, ..
+            } => {
+                assert_eq!(board, None);
+                assert_eq!(description, "Simple task");
+            }
+            _ => panic!("Expected Task"),
+        }
+    }
 }

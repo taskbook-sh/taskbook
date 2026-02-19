@@ -120,6 +120,7 @@ fn suggest_boards(app: &mut App, partial: &str) {
             || b.to_lowercase().starts_with(&partial_lower)
         {
             // Build the completion: replace the @partial with @board
+            // Quote board names that contain spaces
             let input_chars: Vec<char> = app.command_line.input.chars().collect();
             let cursor = app.command_line.cursor.min(input_chars.len());
 
@@ -127,7 +128,12 @@ fn suggest_boards(app: &mut App, partial: &str) {
             if let Some(at_pos) = input_chars[..cursor].iter().rposition(|c| *c == '@') {
                 let before_at: String = input_chars[..at_pos].iter().collect();
                 let after_cursor: String = input_chars[cursor..].iter().collect();
-                let completion = format!("{}@{} {}", before_at, b, after_cursor);
+                let board_ref = if b.contains(' ') {
+                    format!("@\"{}\"", b)
+                } else {
+                    format!("@{}", b)
+                };
+                let completion = format!("{}{} {}", before_at, board_ref, after_cursor);
 
                 app.command_line.suggestions.push(Suggestion {
                     display: format!("@{}", display),
