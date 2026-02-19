@@ -56,8 +56,8 @@ pub fn update_suggestions(app: &mut App) {
         let space_pos = text_to_cursor.find(' ').unwrap();
         let command = &text_to_cursor[1..space_pos]; // skip '/'
 
-        // Find the last token start
-        let last_space = text_to_cursor.rfind(' ').unwrap();
+        // Find the last token start (use char index, not byte index)
+        let last_space = chars[..cursor].iter().rposition(|c| *c == ' ').unwrap();
         let last_token: String = chars[last_space + 1..cursor].iter().collect();
 
         if let Some(after_at) = last_token.strip_prefix('@') {
@@ -122,10 +122,9 @@ fn suggest_boards(app: &mut App, partial: &str) {
             // Build the completion: replace the @partial with @board
             let input_chars: Vec<char> = app.command_line.input.chars().collect();
             let cursor = app.command_line.cursor.min(input_chars.len());
-            let text_to_cursor: String = input_chars[..cursor].iter().collect();
 
-            // Find the @ position
-            if let Some(at_pos) = text_to_cursor.rfind('@') {
+            // Find the @ position (use char index, not byte index)
+            if let Some(at_pos) = input_chars[..cursor].iter().rposition(|c| *c == '@') {
                 let before_at: String = input_chars[..at_pos].iter().collect();
                 let after_cursor: String = input_chars[cursor..].iter().collect();
                 let completion = format!("{}@{} {}", before_at, b, after_cursor);
@@ -153,8 +152,9 @@ fn suggest_items(app: &mut App, partial: &str) {
     let partial_lower = partial.to_lowercase();
     let input_chars: Vec<char> = app.command_line.input.chars().collect();
     let cursor = app.command_line.cursor.min(input_chars.len());
-    let last_space = app.command_line.input[..app.command_line.input.len().min(cursor)]
-        .rfind(' ')
+    let last_space = input_chars[..cursor]
+        .iter()
+        .rposition(|c| *c == ' ')
         .unwrap_or(0);
 
     // Collect and sort by ID for stable ordering
