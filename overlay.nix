@@ -1,6 +1,6 @@
 final: prev:
 let
-  version = "1.1.2";
+  version = "1.1.3";
 
   assets = {
     x86_64-linux = {
