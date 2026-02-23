@@ -114,7 +114,7 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 app.theme.selected.add_modifier(Modifier::BOLD)
             } else if let Some(task) = item.as_task() {
                  if task.is_complete {
-                    app.theme.completed_text
+                    app.theme.completed_text.remove_modifier(Modifier::CROSSED_OUT)
                 } else if task.in_progress {
                     app.theme.warning
                 } else {
