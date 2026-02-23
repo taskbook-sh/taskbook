@@ -47,10 +47,19 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
     for date in dates {
         let date_items = grouped.get(&date).unwrap();
 
-        // Filter items for display (respecting all active filters)
+        // Filter items for display - journal always shows completed tasks
         let visible_items: Vec<&StorageItem> = date_items
             .iter()
-            .filter(|item| app.should_show_item(item))
+            .filter(|item| {
+                // Only apply search filter, skip hide_completed
+                if let Some(ref term) = app.filter.search_term {
+                    let term_lower = term.to_lowercase();
+                    if !item.description().to_lowercase().contains(&term_lower) {
+                        return false;
+                    }
+                }
+                true
+            })
             .copied()
             .collect();
 
