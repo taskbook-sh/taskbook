@@ -24,7 +24,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry", "fmt"] }
 opentelemetry = { version = "0.28", default-features = false, features = ["trace", "metrics", "logs"] }
 opentelemetry_sdk = { version = "0.28", features = ["rt-tokio", "metrics", "logs"] }
-opentelemetry-otlp = { version = "0.28", features = ["trace", "metrics", "logs", "http-proto", "reqwest-blocking-client"] }
+opentelemetry-otlp = { version = "0.28", features = ["trace", "metrics", "logs", "http-proto", "reqwest-client", "reqwest-rustls"] }
 opentelemetry-semantic-conventions = "0.28"
 tracing-opentelemetry = { version = "0.29", features = ["metrics"] }
 opentelemetry-appender-tracing = "0.28"
