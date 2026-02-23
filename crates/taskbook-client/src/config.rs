@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::error::Result;
+use crate::tui::ViewMode;
 
 /// RGB color values
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -237,6 +238,9 @@ pub struct Config {
 
     #[serde(default)]
     pub sort_method: SortMethod,
+
+    #[serde(default)]
+    pub default_view: ViewMode,
 }
 
 fn default_taskbook_directory() -> String {
@@ -256,6 +260,7 @@ impl Default for Config {
             theme: ThemeConfig::default(),
             sync: SyncConfig::default(),
             sort_method: SortMethod::default(),
+            default_view: ViewMode::default(),
         }
     }
 }
@@ -348,5 +353,39 @@ impl Config {
     pub fn disable_sync(&mut self) -> Result<()> {
         self.sync.enabled = false;
         self.save()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn view_mode_serde_round_trip() {
+        for (variant, expected_json) in [
+            (ViewMode::Board, "\"board\""),
+            (ViewMode::Timeline, "\"timeline\""),
+            (ViewMode::Archive, "\"archive\""),
+            (ViewMode::Journal, "\"journal\""),
+        ] {
+            let json = serde_json::to_string(&variant).unwrap();
+            assert_eq!(json, expected_json);
+            let deserialized: ViewMode = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, variant);
+        }
+    }
+
+    #[test]
+    fn config_without_default_view_deserializes_as_board() {
+        let json = r#"{
+            "taskbookDirectory": "~",
+            "displayCompleteTasks": true,
+            "displayProgressOverview": true,
+            "theme": "default",
+            "sync": { "enabled": false, "serverUrl": "http://localhost:8080" },
+            "sortMethod": "id"
+        }"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.default_view, ViewMode::Board);
     }
 }

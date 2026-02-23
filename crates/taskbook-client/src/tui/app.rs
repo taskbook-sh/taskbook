@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use serde::{Deserialize, Serialize};
+
 use crate::config::{Config, SortMethod};
 use crate::error::Result;
 use crate::render::Stats;
@@ -83,8 +85,10 @@ pub struct App {
     pub needs_full_redraw: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ViewMode {
+    #[default]
     Board,
     Timeline,
     Archive,
@@ -172,9 +176,11 @@ impl App {
         let config = Config::load_or_default();
         let theme = TuiTheme::from(&config.theme.resolve());
 
+        let initial_view = config.default_view;
+
         let mut app = Self {
             taskbook,
-            view: ViewMode::Board,
+            view: initial_view,
             selected_index: 0,
             boards: Vec::new(),
             items: HashMap::new(),
@@ -201,6 +207,14 @@ impl App {
         };
 
         app.refresh_items()?;
+
+        // If restoring archive view, load archive items instead
+        if initial_view == ViewMode::Archive {
+            app.items = app.taskbook.get_all_archive_items()?;
+            app.update_display_order();
+            app.recalculate_stats();
+        }
+
         Ok(app)
     }
 
@@ -456,6 +470,10 @@ impl App {
         if self.view != view {
             self.view = view;
             self.selected_index = 0;
+
+            // Persist the view choice
+            self.config.default_view = view;
+            let _ = self.config.save();
 
             // Reload data for archive view
             if view == ViewMode::Archive {
