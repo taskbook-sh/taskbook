@@ -261,6 +261,9 @@ fn execute_command(app: &mut App, cmd: ParsedCommand) -> Result<()> {
         ParsedCommand::Help => {
             app.popup = Some(PopupState::Help);
         }
+        ParsedCommand::Quit => {
+            app.quit();
+        }
     }
     Ok(())
 }
@@ -284,8 +287,6 @@ fn handle_shortcut_key(app: &mut App, key: KeyEvent) -> Result<()> {
             } else if app.filter.board_filter.is_some() {
                 app.clear_board_filter();
                 app.set_status("Filter cleared".to_string(), StatusKind::Info);
-            } else {
-                app.quit();
             }
         }
 

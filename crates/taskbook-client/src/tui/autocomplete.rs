@@ -22,6 +22,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("sort", "Cycle sort method"),
     ("hide-done", "Toggle hide completed"),
     ("help", "Show help"),
+    ("quit", "Quit application"),
 ];
 
 /// Commands that accept item ID references (@<id>)

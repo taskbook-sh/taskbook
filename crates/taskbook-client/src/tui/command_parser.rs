@@ -49,6 +49,7 @@ pub enum ParsedCommand {
     Sort,
     HideDone,
     Help,
+    Quit,
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +105,7 @@ pub fn parse_command(input: &str) -> Result<ParsedCommand, ParseError> {
         "sort" => Ok(ParsedCommand::Sort),
         "hide-done" => Ok(ParsedCommand::HideDone),
         "help" => Ok(ParsedCommand::Help),
+        "quit" | "q" => Ok(ParsedCommand::Quit),
         _ => Err(ParseError {
             message: format!("Unknown command: /{}", cmd),
         }),
