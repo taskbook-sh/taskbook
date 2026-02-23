@@ -44,16 +44,15 @@ impl Drop for TelemetryGuard {
 /// Returns `Some(TelemetryGuard)` when OTel is active — the guard **must** be
 /// held until the end of `main` to ensure a clean flush on shutdown.
 pub fn init_telemetry() -> Option<TelemetryGuard> {
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let otel_endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
 
     if let Some(endpoint) = otel_endpoint {
         // --- OTel-enabled path ---
 
-        let service_name = std::env::var("OTEL_SERVICE_NAME")
-            .unwrap_or_else(|_| "taskbook-server".to_string());
+        let service_name =
+            std::env::var("OTEL_SERVICE_NAME").unwrap_or_else(|_| "taskbook-server".to_string());
 
         let resource = Resource::builder()
             .with_attributes([
@@ -69,9 +68,8 @@ pub fn init_telemetry() -> Option<TelemetryGuard> {
             .build();
 
         // W3C TraceContext propagator
-        let propagator = TextMapCompositePropagator::new(vec![
-            Box::new(TraceContextPropagator::new()),
-        ]);
+        let propagator =
+            TextMapCompositePropagator::new(vec![Box::new(TraceContextPropagator::new())]);
         global::set_text_map_propagator(propagator);
 
         // --- Traces ---
