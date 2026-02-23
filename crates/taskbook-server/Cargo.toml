@@ -1,6 +1,6 @@
 [package]
 name = "taskbook-server"
-version = "1.2.2"
+version = "1.2.3"
 edition = "2021"
 rust-version = "1.75"
 description = "Server for taskbook sync"
