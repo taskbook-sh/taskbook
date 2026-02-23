@@ -2,7 +2,6 @@ use opentelemetry::propagation::TextMapCompositePropagator;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -73,9 +72,10 @@ pub fn init_telemetry() -> Option<TelemetryGuard> {
         global::set_text_map_propagator(propagator);
 
         // --- Traces ---
+        // Do not call .with_endpoint() — the SDK reads OTEL_EXPORTER_OTLP_ENDPOINT
+        // and OTEL_EXPORTER_OTLP_HEADERS automatically, appending /v1/traces for HTTP.
         let trace_exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
-            .with_endpoint(format!("{endpoint}/v1/traces"))
             .build()
             .expect("failed to create OTLP trace exporter");
 
@@ -89,7 +89,6 @@ pub fn init_telemetry() -> Option<TelemetryGuard> {
         // --- Metrics ---
         let metric_exporter = opentelemetry_otlp::MetricExporter::builder()
             .with_http()
-            .with_endpoint(format!("{endpoint}/v1/metrics"))
             .build()
             .expect("failed to create OTLP metric exporter");
 
@@ -107,7 +106,6 @@ pub fn init_telemetry() -> Option<TelemetryGuard> {
         // --- Logs ---
         let log_exporter = opentelemetry_otlp::LogExporter::builder()
             .with_http()
-            .with_endpoint(format!("{endpoint}/v1/logs"))
             .build()
             .expect("failed to create OTLP log exporter");
 
