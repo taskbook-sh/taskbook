@@ -99,9 +99,12 @@ fn build_cors_layer(origins: &[String]) -> CorsLayer {
         ]);
 
     if origins.is_empty() {
-        // No origins configured: reject cross-origin requests
+        // No TB_CORS_ORIGINS configured. Use http://localhost as the default
+        // so that local browser-based development works out of the box.
+        // For any deployed or production browser client, set TB_CORS_ORIGINS
+        // explicitly (e.g. TB_CORS_ORIGINS=https://app.example.com).
         cors.allow_origin(AllowOrigin::exact(HeaderValue::from_static(
-            "https://localhost",
+            "http://localhost",
         )))
     } else {
         let parsed: Vec<HeaderValue> = origins.iter().filter_map(|o| o.parse().ok()).collect();

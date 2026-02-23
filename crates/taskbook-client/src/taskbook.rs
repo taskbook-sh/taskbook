@@ -19,7 +19,7 @@ pub struct Taskbook {
 
 impl Taskbook {
     pub fn new(taskbook_dir: Option<&Path>) -> Result<Self> {
-        let config = Config::load().unwrap_or_default();
+        let config = Config::load_or_default();
 
         let storage: Box<dyn StorageBackend> = if config.sync.enabled {
             Box::new(RemoteStorage::new(&config.sync.server_url)?)
@@ -127,21 +127,6 @@ impl Taskbook {
         }
 
         boards
-    }
-
-    #[allow(dead_code)]
-    fn get_dates(&self, data: &HashMap<String, StorageItem>) -> Vec<String> {
-        let mut seen: HashSet<String> = HashSet::new();
-        let mut dates = Vec::new();
-
-        for item in data.values() {
-            let date = item.date().to_string();
-            if seen.insert(date.clone()) {
-                dates.push(date);
-            }
-        }
-
-        dates
     }
 
     fn get_options(&self, input: &[String]) -> Result<(Vec<String>, String, u64, u8)> {
@@ -334,7 +319,7 @@ impl Taskbook {
         priority: u8,
     ) -> Result<u64> {
         if description.is_empty() {
-            return Err(TaskbookError::InvalidId(0));
+            return Err(TaskbookError::General("Description cannot be empty".into()));
         }
 
         let mut data = self.get_data()?;
@@ -348,7 +333,7 @@ impl Taskbook {
     /// Create a note with explicit board and description (for TUI)
     pub fn create_note_direct(&self, boards: Vec<String>, description: String) -> Result<u64> {
         if description.is_empty() {
-            return Err(TaskbookError::InvalidId(0));
+            return Err(TaskbookError::General("Description cannot be empty".into()));
         }
 
         let mut data = self.get_data()?;

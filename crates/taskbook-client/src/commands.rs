@@ -128,7 +128,7 @@ pub fn migrate(taskbook_dir: Option<PathBuf>) -> Result<()> {
         TaskbookError::Auth("not logged in — run `tb register` or `tb login` first".to_string())
     })?;
 
-    let config = Config::load().unwrap_or_default();
+    let config = Config::load_or_default();
     let encryption_key = creds.encryption_key_bytes()?;
     let engine = base64::engine::general_purpose::STANDARD;
 

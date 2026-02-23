@@ -5,12 +5,13 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 
 use crate::tui::app::App;
 use taskbook_common::StorageItem;
+
+use super::render_scrollable_list;
 
 pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines: Vec<Line> = Vec::new();
@@ -29,16 +30,8 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
         let items_a = grouped.get(a).unwrap();
         let items_b = grouped.get(b).unwrap();
         // Use the maximum timestamp in the group to represent the group date
-        let ts_a = items_a
-            .iter()
-            .map(|i| i.timestamp())
-            .max()
-            .unwrap_or(0);
-        let ts_b = items_b
-            .iter()
-            .map(|i| i.timestamp())
-            .max()
-            .unwrap_or(0);
+        let ts_a = items_a.iter().map(|i| i.timestamp()).max().unwrap_or(0);
+        let ts_b = items_b.iter().map(|i| i.timestamp()).max().unwrap_or(0);
         ts_b.cmp(&ts_a) // Newest first
     });
 
@@ -99,7 +92,7 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
 
         for item in sorted_items {
             let is_selected = app.selected_id() == Some(item.id());
-            
+
             // Format time
             let time_str = Local
                 .timestamp_millis_opt(item.timestamp())
@@ -108,13 +101,15 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 .unwrap_or_else(|| "??:??".to_string());
 
             let time_span = Span::styled(format!("  {} ", time_str), app.theme.muted);
-            
+
             // Title/Description
             let desc_style = if is_selected {
                 app.theme.selected.add_modifier(Modifier::BOLD)
             } else if let Some(task) = item.as_task() {
-                 if task.is_complete {
-                    app.theme.completed_text.remove_modifier(Modifier::CROSSED_OUT)
+                if task.is_complete {
+                    app.theme
+                        .completed_text
+                        .remove_modifier(Modifier::CROSSED_OUT)
                 } else if task.in_progress {
                     app.theme.warning
                 } else {
@@ -122,14 +117,14 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 }
             } else {
                 // Note title
-                 Style::default().fg(Color::Rgb(200, 200, 220))
+                Style::default().fg(Color::Rgb(200, 200, 220))
             };
 
             let mut title_spans = vec![time_span];
-            
+
             // Add icon for tasks
             if let Some(task) = item.as_task() {
-                 let (icon, icon_style) = if task.is_complete {
+                let (icon, icon_style) = if task.is_complete {
                     ("✔", app.theme.success)
                 } else if task.in_progress {
                     ("…", app.theme.warning)
@@ -138,8 +133,8 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 };
                 title_spans.push(Span::styled(format!("{} ", icon), icon_style));
             } else {
-                 // Note icon
-                 title_spans.push(Span::styled("● ", app.theme.info));
+                // Note icon
+                title_spans.push(Span::styled("● ", app.theme.info));
             }
 
             title_spans.push(Span::styled(item.description().to_string(), desc_style));
@@ -158,14 +153,14 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                         };
                         // Indent body
                         lines.push(Line::from(vec![
-                            Span::raw("        "), 
-                            Span::styled(line.to_string(), body_style)
+                            Span::raw("        "),
+                            Span::styled(line.to_string(), body_style),
                         ]));
                         item_line_map.push(Some(item.id()));
                     }
                 }
             }
-            
+
             // Add spacing between entries
             lines.push(Line::from(""));
             item_line_map.push(None);
@@ -173,34 +168,4 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     render_scrollable_list(frame, area, lines, &item_line_map, app.selected_id());
-}
-
-fn render_scrollable_list(
-    frame: &mut Frame,
-    area: Rect,
-    lines: Vec<Line<'static>>,
-    item_line_map: &[Option<u64>],
-    selected_id: Option<u64>,
-) {
-    let selected_line = item_line_map
-        .iter()
-        .position(|id| *id == selected_id)
-        .unwrap_or(0);
-
-    let scroll_offset = if selected_line >= area.height as usize {
-        selected_line.saturating_sub(area.height as usize / 2)
-    } else {
-        0
-    };
-
-    let paragraph = Paragraph::new(lines.clone()).scroll((scroll_offset as u16, 0));
-    frame.render_widget(paragraph, area);
-
-    if lines.len() > area.height as usize {
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(None)
-            .end_symbol(None);
-        let mut scrollbar_state = ScrollbarState::new(lines.len()).position(scroll_offset);
-        frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
-    }
 }

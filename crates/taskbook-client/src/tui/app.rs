@@ -169,7 +169,7 @@ pub enum StatusKind {
 impl App {
     pub fn new(taskbook_dir: Option<&Path>) -> Result<Self> {
         let taskbook = Taskbook::new(taskbook_dir)?;
-        let config = Config::load().unwrap_or_default();
+        let config = Config::load_or_default();
         let theme = TuiTheme::from(&config.theme.resolve());
 
         let mut app = Self {

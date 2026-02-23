@@ -26,7 +26,9 @@ const COMMANDS: &[(&str, &str)] = &[
 ];
 
 /// Commands that accept item ID references (@<id>)
-const ITEM_COMMANDS: &[&str] = &["check", "star", "begin", "delete", "edit", "move", "priority"];
+const ITEM_COMMANDS: &[&str] = &[
+    "check", "star", "begin", "delete", "edit", "move", "priority",
+];
 
 const MAX_SUGGESTIONS: usize = 8;
 
@@ -79,7 +81,10 @@ pub fn update_suggestions(app: &mut App) {
 
 /// Determine whether the current argument position should get item suggestions
 fn should_suggest_items(command: &str, text_to_cursor: &str, _last_space: usize) -> bool {
-    let after_command = text_to_cursor.split_once(' ').map(|(_, rest)| rest).unwrap_or("");
+    let after_command = text_to_cursor
+        .split_once(' ')
+        .map(|(_, rest)| rest)
+        .unwrap_or("");
     let args: Vec<&str> = after_command.split_whitespace().collect();
 
     match command {
@@ -113,9 +118,7 @@ fn suggest_commands(app: &mut App, partial: &str) {
 
 fn suggest_boards(app: &mut App, partial: &str) {
     let partial_lower = partial.to_lowercase();
-    let board_names: Vec<String> = app.boards.clone();
-
-    for b in &board_names {
+    for b in &app.boards.clone() {
         let display = board::display_name(b);
         if display.to_lowercase().starts_with(&partial_lower)
             || b.to_lowercase().starts_with(&partial_lower)

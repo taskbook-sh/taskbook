@@ -10,9 +10,6 @@ pub enum CommonError {
 
     #[error("Decryption failed: ciphertext authentication error")]
     DecryptionFailed,
-
-    #[error("Encryption error: {0}")]
-    Encryption(String),
 }
 
 pub type CommonResult<T> = std::result::Result<T, CommonError>;

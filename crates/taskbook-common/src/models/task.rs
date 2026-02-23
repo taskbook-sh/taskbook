@@ -36,6 +36,7 @@ pub struct Task {
 }
 
 impl Task {
+    /// Creates a new task. The `priority` value is clamped silently to the range 1-3.
     pub fn new(id: u64, description: String, boards: Vec<String>, priority: u8) -> Self {
         let now = chrono::Local::now();
         Self {
@@ -79,6 +80,30 @@ impl Item for Task {
     }
 
     fn is_task(&self) -> bool {
-        true
+        self.is_task_flag
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_is_task_uses_flag() {
+        let task = Task::new(1, "Test".to_string(), vec!["My Board".to_string()], 1);
+        assert!(task.is_task());
+        assert!(task.is_task_flag);
+    }
+
+    #[test]
+    fn test_priority_clamped_to_range() {
+        let low = Task::new(1, "Test".to_string(), vec!["My Board".to_string()], 0);
+        assert_eq!(low.priority, 1);
+
+        let high = Task::new(2, "Test".to_string(), vec!["My Board".to_string()], 255);
+        assert_eq!(high.priority, 3);
+
+        let mid = Task::new(3, "Test".to_string(), vec!["My Board".to_string()], 2);
+        assert_eq!(mid.priority, 2);
     }
 }

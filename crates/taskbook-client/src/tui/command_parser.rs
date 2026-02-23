@@ -236,10 +236,7 @@ fn parse_move(args: &str) -> Result<ParsedCommand, ParseError> {
         }
     } else {
         // Unquoted, no @ prefix — take first word
-        rest.split_whitespace()
-            .next()
-            .unwrap_or("")
-            .to_string()
+        rest.split_whitespace().next().unwrap_or("").to_string()
     };
 
     if board.is_empty() {
@@ -357,9 +354,7 @@ fn extract_at_board(input: &str) -> Option<(String, &str)> {
         }
     } else {
         // Unquoted: @word
-        let end = after_at
-            .find(char::is_whitespace)
-            .unwrap_or(after_at.len());
+        let end = after_at.find(char::is_whitespace).unwrap_or(after_at.len());
         let board_name = &after_at[..end];
         if board_name.is_empty() {
             return None;
@@ -482,9 +477,7 @@ mod tests {
         let result = parse_command("/task @coding Fix bug").unwrap();
         match result {
             ParsedCommand::Task {
-                board,
-                description,
-                ..
+                board, description, ..
             } => {
                 assert_eq!(board.as_deref(), Some("coding"));
                 assert_eq!(description, "Fix bug");
@@ -519,8 +512,7 @@ mod tests {
 
     #[test]
     fn test_parse_rename_board_quoted() {
-        let result =
-            parse_command("/rename-board @\"Old Board\" @\"New Board Name\"").unwrap();
+        let result = parse_command("/rename-board @\"Old Board\" @\"New Board Name\"").unwrap();
         match result {
             ParsedCommand::RenameBoard { old_name, new_name } => {
                 assert_eq!(old_name, "Old Board");

@@ -69,12 +69,12 @@ fn handle_command_line_key(app: &mut App, key: KeyEvent) -> Result<()> {
         match key.code {
             KeyCode::Up => {
                 let count = app.command_line.suggestions.len();
-                app.command_line.selected_suggestion = Some(match app.command_line.selected_suggestion
-                {
-                    None => count - 1,
-                    Some(0) => count - 1,
-                    Some(i) => i - 1,
-                });
+                app.command_line.selected_suggestion =
+                    Some(match app.command_line.selected_suggestion {
+                        None => count - 1,
+                        Some(0) => count - 1,
+                        Some(i) => i - 1,
+                    });
                 return Ok(());
             }
             KeyCode::Down => {
@@ -307,12 +307,6 @@ fn handle_shortcut_key(app: &mut App, key: KeyEvent) -> Result<()> {
                         app.set_board_filter(Some(board_name));
                         app.set_status(format!("Filtering by {}", display), StatusKind::Info);
                     }
-                }
-            } else if app.view == ViewMode::Board && app.filter.board_filter.is_none() {
-                if let Some(board_name) = app.get_board_for_selected() {
-                    let display = board::display_name(&board_name);
-                    app.set_board_filter(Some(board_name));
-                    app.set_status(format!("Filtering by {}", display), StatusKind::Info);
                 }
             }
         }

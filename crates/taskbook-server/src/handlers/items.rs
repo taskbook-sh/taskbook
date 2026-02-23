@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use axum::extract::State;
 use axum::Json;
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, ServerError};
@@ -24,6 +25,24 @@ pub struct PutItemsRequest {
     pub items: HashMap<String, EncryptedItemData>,
 }
 
+/// Convert raw database rows `(item_key, data_bytes, nonce_bytes)` into the
+/// base64-encoded `EncryptedItemData` map returned to callers.
+fn rows_to_encrypted_items(
+    rows: Vec<(String, Vec<u8>, Vec<u8>)>,
+) -> HashMap<String, EncryptedItemData> {
+    rows.into_iter()
+        .map(|(key, data, nonce)| {
+            (
+                key,
+                EncryptedItemData {
+                    data: base64::engine::general_purpose::STANDARD.encode(&data),
+                    nonce: base64::engine::general_purpose::STANDARD.encode(&nonce),
+                },
+            )
+        })
+        .collect()
+}
+
 pub async fn get_items(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -36,19 +55,9 @@ pub async fn get_items(
     .await
     .map_err(ServerError::Database)?;
 
-    let mut items = HashMap::new();
-    for (key, data, nonce) in rows {
-        use base64::Engine;
-        items.insert(
-            key,
-            EncryptedItemData {
-                data: base64::engine::general_purpose::STANDARD.encode(&data),
-                nonce: base64::engine::general_purpose::STANDARD.encode(&nonce),
-            },
-        );
-    }
-
-    Ok(Json(ItemsResponse { items }))
+    Ok(Json(ItemsResponse {
+        items: rows_to_encrypted_items(rows),
+    }))
 }
 
 pub async fn put_items(
@@ -75,19 +84,9 @@ pub async fn get_archive(
     .await
     .map_err(ServerError::Database)?;
 
-    let mut items = HashMap::new();
-    for (key, data, nonce) in rows {
-        use base64::Engine;
-        items.insert(
-            key,
-            EncryptedItemData {
-                data: base64::engine::general_purpose::STANDARD.encode(&data),
-                nonce: base64::engine::general_purpose::STANDARD.encode(&nonce),
-            },
-        );
-    }
-
-    Ok(Json(ItemsResponse { items }))
+    Ok(Json(ItemsResponse {
+        items: rows_to_encrypted_items(rows),
+    }))
 }
 
 pub async fn put_archive(
@@ -112,8 +111,6 @@ async fn replace_items(
     archived: bool,
     items: &HashMap<String, EncryptedItemData>,
 ) -> Result<()> {
-    use base64::Engine;
-
     if items.len() > MAX_ITEMS_PER_CATEGORY {
         return Err(ServerError::Validation(format!(
             "too many items: maximum is {MAX_ITEMS_PER_CATEGORY}, got {}",
@@ -171,4 +168,52 @@ async fn replace_items(
     tx.commit().await.map_err(ServerError::Database)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_row(key: &str, data: &[u8], nonce: &[u8]) -> (String, Vec<u8>, Vec<u8>) {
+        (key.to_string(), data.to_vec(), nonce.to_vec())
+    }
+
+    #[test]
+    fn rows_to_encrypted_items_encodes_base64() {
+        let data = b"ciphertext bytes";
+        let nonce = b"nonce123nonce"; // 13 bytes
+        let rows = vec![make_row("item-1", data, nonce)];
+
+        let map = rows_to_encrypted_items(rows);
+
+        assert_eq!(map.len(), 1);
+        let item = map.get("item-1").expect("item-1 should be present");
+
+        assert_eq!(
+            item.data,
+            base64::engine::general_purpose::STANDARD.encode(data)
+        );
+        assert_eq!(
+            item.nonce,
+            base64::engine::general_purpose::STANDARD.encode(nonce)
+        );
+    }
+
+    #[test]
+    fn rows_to_encrypted_items_empty_input() {
+        let map = rows_to_encrypted_items(vec![]);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn rows_to_encrypted_items_multiple_rows() {
+        let rows = vec![
+            make_row("key-a", b"data-a", b"nonce-a"),
+            make_row("key-b", b"data-b", b"nonce-b"),
+        ];
+        let map = rows_to_encrypted_items(rows);
+        assert_eq!(map.len(), 2);
+        assert!(map.contains_key("key-a"));
+        assert!(map.contains_key("key-b"));
+    }
 }

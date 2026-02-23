@@ -83,7 +83,7 @@ pub fn register(
     creds.save()?;
 
     // Enable sync in config
-    let mut config = Config::load().unwrap_or_default();
+    let mut config = Config::load_or_default();
     config.enable_sync(&server)?;
 
     println!();
@@ -146,7 +146,7 @@ pub fn login(
     creds.save()?;
 
     // Enable sync in config
-    let mut config = Config::load().unwrap_or_default();
+    let mut config = Config::load_or_default();
     config.enable_sync(&server)?;
 
     println!();
@@ -167,7 +167,7 @@ pub fn logout() -> Result<()> {
     Credentials::delete()?;
 
     // Disable sync in config
-    let mut config = Config::load().unwrap_or_default();
+    let mut config = Config::load_or_default();
     config.disable_sync()?;
 
     println!("{}", "Logged out.".green());
@@ -178,7 +178,7 @@ pub fn logout() -> Result<()> {
 
 /// Show current sync status.
 pub fn status() -> Result<()> {
-    let config = Config::load().unwrap_or_default();
+    let config = Config::load_or_default();
 
     if config.sync.enabled {
         println!("Mode:   {}", "remote".green().bold());

@@ -28,7 +28,7 @@ pub fn encrypt_item(key: &[u8; 32], item: &StorageItem) -> Result<EncryptedItem,
     let nonce = Aes256Gcm::generate_nonce(OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext.as_ref())
-        .map_err(|e| CommonError::Encryption(e.to_string()))?;
+        .map_err(|_| CommonError::DecryptionFailed)?;
 
     Ok(EncryptedItem {
         data: ciphertext,

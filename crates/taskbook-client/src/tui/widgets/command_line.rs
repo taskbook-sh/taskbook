@@ -30,10 +30,7 @@ fn render_placeholder(frame: &mut Frame, _app: &App, area: Rect) {
 
     let line = Line::from(vec![
         Span::styled("  > ", prompt_style),
-        Span::styled(
-            "Type / or Tab for commands, ? for help",
-            placeholder_style,
-        ),
+        Span::styled("Type / or Tab for commands, ? for help", placeholder_style),
     ]);
 
     frame.render_widget(Paragraph::new(line), area);
@@ -182,8 +179,11 @@ pub fn render_autocomplete(frame: &mut Frame, app: &App, content_area: Rect) {
             }
         }
 
-        // Fill remaining width with background
-        let line_len: usize = spans.iter().map(|s| s.content.len()).sum();
+        // Fill remaining width with background (use display width, not byte length)
+        let line_len: usize = spans
+            .iter()
+            .map(|s| unicode_width::UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
         if line_len < dropdown_width as usize {
             spans.push(Span::styled(
                 " ".repeat(dropdown_width as usize - line_len),

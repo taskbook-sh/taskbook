@@ -3261,6 +3261,7 @@ dependencies = [
  "taskbook-common",
  "thiserror 1.0.69",
  "tokio",
+ "unicode-width",
  "uuid",
 ]
 
