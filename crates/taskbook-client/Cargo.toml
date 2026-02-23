@@ -27,6 +27,7 @@ base64 = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 rpassword = "7"
 fs2 = "0.4"
+unicode-width = "0.2"
 
 [[bin]]
 name = "tb"

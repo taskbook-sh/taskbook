@@ -12,6 +12,8 @@ pub const DEFAULT_BOARD: &str = "My Board";
 /// - Trims whitespace
 /// - Maps the alias `myboard` (case-insensitive) to [`DEFAULT_BOARD`]
 pub fn normalize_board_name(raw: &str) -> String {
+    // First trim removes outer whitespace; trim_start_matches strips the '@' prefix;
+    // second trim handles whitespace between '@' and the board name (e.g. "@  board").
     let trimmed = raw.trim().trim_start_matches('@').trim();
     if trimmed.is_empty()
         || trimmed.eq_ignore_ascii_case("myboard")
@@ -53,8 +55,8 @@ pub fn parse_cli_input(input: &[String]) -> (Vec<String>, String, u8) {
 
     for word in input {
         if is_priority_opt(word) {
-            if let Some(p) = word.chars().last().and_then(|c| c.to_digit(10)) {
-                priority = p as u8;
+            if let Ok(p) = word.trim_start_matches("p:").parse::<u8>() {
+                priority = p;
             }
         } else if word.starts_with('@') && word.len() > 1 {
             boards.push(normalize_board_name(word));
@@ -179,6 +181,15 @@ mod tests {
         let (boards, desc, _) = parse_cli_input(&input);
         assert_eq!(boards, vec!["coding"]);
         assert_eq!(desc, "task");
+    }
+
+    #[test]
+    fn test_parse_cli_input_priority_parsing() {
+        for p in 1..=3u8 {
+            let input: Vec<String> = vec!["task".into(), format!("p:{p}")];
+            let (_, _, priority) = parse_cli_input(&input);
+            assert_eq!(priority, p, "expected priority {p}");
+        }
     }
 
     #[test]

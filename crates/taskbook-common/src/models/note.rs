@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 
 use super::item::Item;
@@ -82,13 +84,14 @@ impl Note {
         self.body.as_ref().is_some_and(|b| !b.trim().is_empty())
     }
 
-    /// Returns the full note content (title + body combined)
-    pub fn full_content(&self) -> String {
+    /// Returns the full note content (title + body combined).
+    /// Returns a borrowed reference when there is no body to avoid allocation.
+    pub fn full_content(&self) -> Cow<'_, str> {
         match &self.body {
             Some(body) if !body.trim().is_empty() => {
-                format!("{}\n\n{}", self.description, body)
+                Cow::Owned(format!("{}\n\n{}", self.description, body))
             }
-            _ => self.description.clone(),
+            _ => Cow::Borrowed(&self.description),
         }
     }
 
@@ -124,7 +127,7 @@ impl Item for Note {
     }
 
     fn is_task(&self) -> bool {
-        false
+        self.is_task_flag
     }
 }
 
@@ -133,12 +136,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_note_is_task_uses_flag() {
+        let note = Note::new(1, "Test".to_string(), vec!["My Board".to_string()]);
+        assert!(!note.is_task());
+        assert!(!note.is_task_flag);
+    }
+
+    #[test]
     fn test_note_without_body() {
         let note = Note::new(1, "Test title".to_string(), vec!["My Board".to_string()]);
         assert_eq!(note.title(), "Test title");
         assert!(note.body().is_none());
         assert!(!note.has_body());
-        assert_eq!(note.full_content(), "Test title");
+        assert_eq!(note.full_content().as_ref(), "Test title");
     }
 
     #[test]
@@ -152,7 +162,10 @@ mod tests {
         assert_eq!(note.title(), "Test title");
         assert_eq!(note.body(), Some("Body content here."));
         assert!(note.has_body());
-        assert_eq!(note.full_content(), "Test title\n\nBody content here.");
+        assert_eq!(
+            note.full_content().as_ref(),
+            "Test title\n\nBody content here."
+        );
     }
 
     #[test]
@@ -165,7 +178,7 @@ mod tests {
         );
         // Empty/whitespace-only body should be treated as no body
         assert!(!note.has_body());
-        assert_eq!(note.full_content(), "Test title");
+        assert_eq!(note.full_content().as_ref(), "Test title");
     }
 
     #[test]

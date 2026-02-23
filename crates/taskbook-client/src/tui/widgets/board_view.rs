@@ -1,7 +1,6 @@
 use ratatui::{
     layout::Rect,
     text::{Line, Span},
-    widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 
@@ -10,6 +9,7 @@ use taskbook_common::board;
 use taskbook_common::StorageItem;
 
 use super::item_row::{render_item_line, ItemRowOptions};
+use super::render_scrollable_list;
 
 pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines: Vec<Line> = Vec::new();
@@ -87,34 +87,4 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     render_scrollable_list(frame, area, lines, &item_line_map, app.selected_id());
-}
-
-fn render_scrollable_list(
-    frame: &mut Frame,
-    area: Rect,
-    lines: Vec<Line<'static>>,
-    item_line_map: &[Option<u64>],
-    selected_id: Option<u64>,
-) {
-    let selected_line = item_line_map
-        .iter()
-        .position(|id| *id == selected_id)
-        .unwrap_or(0);
-
-    let scroll_offset = if selected_line >= area.height as usize {
-        selected_line.saturating_sub(area.height as usize / 2)
-    } else {
-        0
-    };
-
-    let paragraph = Paragraph::new(lines.clone()).scroll((scroll_offset as u16, 0));
-    frame.render_widget(paragraph, area);
-
-    if lines.len() > area.height as usize {
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(None)
-            .end_symbol(None);
-        let mut scrollbar_state = ScrollbarState::new(lines.len()).position(scroll_offset);
-        frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
-    }
 }

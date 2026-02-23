@@ -318,6 +318,17 @@ impl Config {
         Self::format_taskbook_dir(&self.taskbook_directory)
     }
 
+    /// Load configuration, falling back to defaults with a warning on failure.
+    pub fn load_or_default() -> Self {
+        match Self::load() {
+            Ok(config) => config,
+            Err(err) => {
+                eprintln!("Warning: failed to load config: {err}, using defaults");
+                Self::default()
+            }
+        }
+    }
+
     /// Save the configuration to file
     pub fn save(&self) -> Result<()> {
         let config_path = Self::config_file_path();
