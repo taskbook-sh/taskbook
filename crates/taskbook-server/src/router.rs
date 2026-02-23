@@ -11,6 +11,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use uuid::Uuid;
 
 use crate::handlers::{events, health, items, user};
+use crate::metrics_middleware::HttpMetricsLayer;
 use crate::rate_limit::RateLimiter;
 
 /// Event broadcast to connected SSE clients when data changes.
@@ -68,7 +69,7 @@ pub fn build(pool: PgPool, session_expiry_days: i64, cors_origins: &[String]) ->
 
     let cors = build_cors_layer(cors_origins);
 
-    Router::new()
+    let router = Router::new()
         .route("/api/v1/health", get(health::health))
         .route("/api/v1/register", post(user::register))
         .route("/api/v1/login", post(user::login))
@@ -81,8 +82,15 @@ pub fn build(pool: PgPool, session_expiry_days: i64, cors_origins: &[String]) ->
         .route("/api/v1/events", get(events::events))
         // 10 MB body limit for item uploads
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
-        .layer(cors)
-        .with_state(state)
+        .layer(cors);
+
+    let router = if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() {
+        router.layer(HttpMetricsLayer::new())
+    } else {
+        router
+    };
+
+    router.with_state(state)
 }
 
 fn build_cors_layer(origins: &[String]) -> CorsLayer {

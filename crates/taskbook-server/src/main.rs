@@ -3,22 +3,21 @@ mod config;
 mod db;
 mod error;
 mod handlers;
+mod metrics_middleware;
 mod middleware;
 mod rate_limit;
 mod router;
+mod telemetry;
 
 use std::net::SocketAddr;
 
 use tokio::net::TcpListener;
-use tracing_subscriber::EnvFilter;
 
 use crate::config::ServerConfig;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
+    let _telemetry_guard = telemetry::init_telemetry();
 
     let config = match ServerConfig::load() {
         Ok(c) => c,
@@ -40,6 +39,10 @@ async fn main() {
     if let Err(e) = sqlx::migrate!("src/migrations").run(&pool).await {
         tracing::error!("failed to run database migrations: {e}");
         std::process::exit(1);
+    }
+
+    if _telemetry_guard.is_some() {
+        telemetry::spawn_db_pool_metrics(pool.clone());
     }
 
     let app = router::build(pool, config.session_expiry_days, &config.cors_origins);

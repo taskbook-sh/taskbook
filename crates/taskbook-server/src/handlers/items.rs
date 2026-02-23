@@ -43,6 +43,7 @@ fn rows_to_encrypted_items(
         .collect()
 }
 
+#[tracing::instrument(skip(state))]
 pub async fn get_items(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -60,6 +61,7 @@ pub async fn get_items(
     }))
 }
 
+#[tracing::instrument(skip(state, req), fields(item_count = req.items.len()))]
 pub async fn put_items(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -72,6 +74,7 @@ pub async fn put_items(
     Ok(())
 }
 
+#[tracing::instrument(skip(state))]
 pub async fn get_archive(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -89,6 +92,7 @@ pub async fn get_archive(
     }))
 }
 
+#[tracing::instrument(skip(state, req), fields(item_count = req.items.len()))]
 pub async fn put_archive(
     State(state): State<AppState>,
     auth: AuthUser,
