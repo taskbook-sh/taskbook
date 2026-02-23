@@ -20,15 +20,15 @@ pub fn render(frame: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(1), // Header
             Constraint::Min(1),    // Content
-            Constraint::Length(1), // Stats line
             Constraint::Length(1), // Command line
+            Constraint::Length(1), // Stats line
         ])
         .split(frame.area());
 
     render_header(frame, app, chunks[0]);
     render_content(frame, app, chunks[1]);
-    render_stats_line(frame, app, chunks[2]);
-    render_command_line(frame, app, chunks[3]);
+    render_command_line(frame, app, chunks[2]);
+    render_stats_line(frame, app, chunks[3]);
 
     // Render autocomplete overlay on top of content area
     render_autocomplete(frame, app, chunks[1]);
