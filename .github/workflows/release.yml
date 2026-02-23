@@ -18,7 +18,7 @@ jobs:
             os: ubuntu-latest
             name: tb-linux-x86_64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
             name: tb-linux-aarch64
           - target: x86_64-apple-darwin
             os: macos-latest
@@ -37,12 +37,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools (Linux aarch64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -50,8 +44,6 @@ jobs:
 
       - name: Build client
         run: cargo build --release --package taskbook-client --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Package binary
         shell: bash
@@ -74,7 +66,7 @@ jobs:
             os: ubuntu-latest
             name: tb-server-linux-x86_64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
             name: tb-server-linux-aarch64
 
     runs-on: ${{ matrix.os }}
@@ -87,12 +79,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools (Linux aarch64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -100,8 +86,6 @@ jobs:
 
       - name: Build server
         run: cargo build --release --package taskbook-server --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Package binary
         shell: bash
