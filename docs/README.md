@@ -33,6 +33,7 @@ tb --begin 2
 | [Server Setup](server.md) | Running the sync server |
 | [Sync & Encryption](sync.md) | Setting up sync between devices |
 | [Kubernetes Deployment](kubernetes.md) | Deploying the server to Kubernetes |
+| [Observability](observability.md) | OpenTelemetry traces, metrics & logs |
 
 ## Features
 

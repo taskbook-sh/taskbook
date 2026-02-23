@@ -276,6 +276,8 @@ taskbook.example.com {
 
 ## Monitoring
 
+For full observability with OpenTelemetry (traces, metrics, and logs exported to Grafana Cloud or any OTLP-compatible backend), see the [Observability guide](observability.md).
+
 ### Health Check
 
 ```bash

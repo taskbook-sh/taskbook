@@ -43,6 +43,7 @@ pub struct MeResponse {
     pub email: String,
 }
 
+#[tracing::instrument(skip(state, req), fields(username = %req.username))]
 pub async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -81,6 +82,7 @@ pub async fn register(
     Ok(Json(RegisterResponse { token }))
 }
 
+#[tracing::instrument(skip(state, req), fields(username = %req.username))]
 pub async fn login(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -117,6 +119,7 @@ pub async fn login(
     Ok(Json(LoginResponse { token }))
 }
 
+#[tracing::instrument(skip(state))]
 pub async fn logout(State(state): State<AppState>, auth: AuthUser) -> Result<()> {
     sqlx::query("DELETE FROM sessions WHERE user_id = $1")
         .bind(auth.user_id)
@@ -129,6 +132,7 @@ pub async fn logout(State(state): State<AppState>, auth: AuthUser) -> Result<()>
     Ok(())
 }
 
+#[tracing::instrument(skip(state))]
 pub async fn me(State(state): State<AppState>, auth: AuthUser) -> Result<Json<MeResponse>> {
     let user =
         sqlx::query_as::<_, (String, String)>("SELECT username, email FROM users WHERE id = $1")
