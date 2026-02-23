@@ -11,7 +11,7 @@ pub mod widgets;
 use crate::config::Config;
 use crate::credentials::Credentials;
 use crate::error::{Result, TaskbookError};
-pub use app::App;
+pub use app::{App, ViewMode};
 
 use std::io::{self, Write};
 use std::path::Path;
