@@ -5,10 +5,12 @@ pub enum ParsedCommand {
         board: Option<String>,
         description: String,
         priority: u8,
+        tags: Vec<String>,
     },
     Note {
         board: Option<String>,
         description: String,
+        tags: Vec<String>,
     },
     Edit {
         id: u64,
@@ -36,6 +38,11 @@ pub enum ParsedCommand {
     },
     Begin {
         ids: Vec<u64>,
+    },
+    Tag {
+        id: u64,
+        add: Vec<String>,
+        remove: Vec<String>,
     },
     Clear,
     RenameBoard {
@@ -96,6 +103,7 @@ pub fn parse_command(input: &str) -> Result<ParsedCommand, ParseError> {
         "check" => parse_id_list(args).map(|ids| ParsedCommand::Check { ids }),
         "star" => parse_id_list(args).map(|ids| ParsedCommand::Star { ids }),
         "begin" => parse_id_list(args).map(|ids| ParsedCommand::Begin { ids }),
+        "tag" => parse_tag(args),
         "clear" => Ok(ParsedCommand::Clear),
         "rename-board" => parse_rename_board(args),
         "board" => Ok(ParsedCommand::Board),
@@ -131,6 +139,7 @@ fn parse_task(args: &str) -> Result<ParsedCommand, ParseError> {
 
     let mut priority = 1u8;
     let mut desc_parts = Vec::new();
+    let mut tags = Vec::new();
 
     for token in rest.split_whitespace() {
         if let Some(p) = token.strip_prefix("p:") {
@@ -138,6 +147,11 @@ fn parse_task(args: &str) -> Result<ParsedCommand, ParseError> {
                 if (1..=3).contains(&v) {
                     priority = v;
                 }
+            }
+        } else if token.starts_with('+') && token.len() > 1 {
+            let tag = token[1..].to_lowercase();
+            if !tags.iter().any(|t: &String| t.eq_ignore_ascii_case(&tag)) {
+                tags.push(tag);
             }
         } else {
             desc_parts.push(token);
@@ -155,6 +169,7 @@ fn parse_task(args: &str) -> Result<ParsedCommand, ParseError> {
         board,
         description,
         priority,
+        tags,
     })
 }
 
@@ -175,14 +190,32 @@ fn parse_note(args: &str) -> Result<ParsedCommand, ParseError> {
         (None, args.to_string())
     };
 
-    let description = rest.trim().to_string();
+    let mut desc_parts = Vec::new();
+    let mut tags = Vec::new();
+
+    for token in rest.split_whitespace() {
+        if token.starts_with('+') && token.len() > 1 {
+            let tag = token[1..].to_lowercase();
+            if !tags.iter().any(|t: &String| t.eq_ignore_ascii_case(&tag)) {
+                tags.push(tag);
+            }
+        } else {
+            desc_parts.push(token);
+        }
+    }
+
+    let description = desc_parts.join(" ");
     if description.is_empty() {
         return Err(ParseError {
             message: "Note title cannot be empty".to_string(),
         });
     }
 
-    Ok(ParsedCommand::Note { board, description })
+    Ok(ParsedCommand::Note {
+        board,
+        description,
+        tags,
+    })
 }
 
 fn parse_edit(args: &str) -> Result<ParsedCommand, ParseError> {
@@ -363,6 +396,48 @@ fn extract_at_board(input: &str) -> Option<(String, &str)> {
     }
 }
 
+fn parse_tag(args: &str) -> Result<ParsedCommand, ParseError> {
+    let args = args.trim();
+    if args.is_empty() {
+        return Err(ParseError {
+            message: "Usage: /tag @<id> +tag1 +tag2 -tag3".to_string(),
+        });
+    }
+
+    let tokens: Vec<&str> = args.split_whitespace().collect();
+    if tokens.len() < 2 {
+        return Err(ParseError {
+            message: "Usage: /tag @<id> +tag1 -tag2".to_string(),
+        });
+    }
+
+    let id = parse_at_id(tokens[0])?;
+    let mut add = Vec::new();
+    let mut remove = Vec::new();
+
+    for token in &tokens[1..] {
+        if let Some(tag) = token.strip_prefix('+') {
+            let normalized = tag.trim().to_lowercase();
+            if !normalized.is_empty() {
+                add.push(normalized);
+            }
+        } else if let Some(tag) = token.strip_prefix('-') {
+            let normalized = tag.trim().to_lowercase();
+            if !normalized.is_empty() {
+                remove.push(normalized);
+            }
+        }
+    }
+
+    if add.is_empty() && remove.is_empty() {
+        return Err(ParseError {
+            message: "Use +tag to add or -tag to remove".to_string(),
+        });
+    }
+
+    Ok(ParsedCommand::Tag { id, add, remove })
+}
+
 fn parse_at_id(token: &str) -> Result<u64, ParseError> {
     let num_str = token.strip_prefix('@').unwrap_or(token);
 
@@ -446,6 +521,7 @@ mod tests {
                 board,
                 description,
                 priority,
+                ..
             } => {
                 assert_eq!(board.as_deref(), Some("MiST: IT-Leder"));
                 assert_eq!(description, "Fix the bug");
@@ -463,6 +539,7 @@ mod tests {
                 board,
                 description,
                 priority,
+                ..
             } => {
                 assert_eq!(board.as_deref(), Some("Dev Ops"));
                 assert_eq!(description, "Deploy service");
@@ -490,7 +567,7 @@ mod tests {
     fn test_parse_note_quoted_board() {
         let result = parse_command("/note @\"MiST: IT-Leder\" Important note").unwrap();
         match result {
-            ParsedCommand::Note { board, description } => {
+            ParsedCommand::Note { board, description, .. } => {
                 assert_eq!(board.as_deref(), Some("MiST: IT-Leder"));
                 assert_eq!(description, "Important note");
             }

@@ -12,6 +12,14 @@ use crate::storage::{LocalStorage, RemoteStorage, StorageBackend};
 use taskbook_common::board::{self, DEFAULT_BOARD};
 use taskbook_common::{Note, StorageItem, Task};
 
+struct CreateOptions {
+    boards: Vec<String>,
+    description: String,
+    id: u64,
+    priority: u8,
+    tags: Vec<String>,
+}
+
 pub struct Taskbook {
     storage: Box<dyn StorageBackend>,
     render: Render,
@@ -129,7 +137,7 @@ impl Taskbook {
         boards
     }
 
-    fn get_options(&self, input: &[String]) -> Result<(Vec<String>, String, u64, u8)> {
+    fn get_options(&self, input: &[String]) -> Result<CreateOptions> {
         if input.is_empty() {
             self.render.missing_desc();
             return Err(TaskbookError::InvalidId(0));
@@ -138,9 +146,15 @@ impl Taskbook {
         let data = self.get_data()?;
         let id = self.generate_id(&data);
 
-        let (boards, description, priority) = board::parse_cli_input(input);
+        let (boards, description, priority, tags) = board::parse_cli_input(input);
 
-        Ok((boards, description, id, priority))
+        Ok(CreateOptions {
+            boards,
+            description,
+            id,
+            priority,
+            tags,
+        })
     }
 
     fn get_stats(&self, data: &HashMap<String, StorageItem>) -> Stats {
@@ -179,10 +193,44 @@ impl Taskbook {
         }
     }
 
-    fn has_terms(string: &str, terms: &[String]) -> bool {
-        let string_lower = string.to_lowercase();
+    fn item_matches_terms(item: &StorageItem, terms: &[String]) -> bool {
         for term in terms {
-            if string_lower.contains(&term.to_lowercase()) {
+            let term_lower = term.to_lowercase();
+
+            // Check if searching by tag (+tag syntax)
+            if let Some(tag_query) = term_lower.strip_prefix('+') {
+                if item
+                    .tags()
+                    .iter()
+                    .any(|t| t.to_lowercase().contains(tag_query))
+                {
+                    return true;
+                }
+                continue;
+            }
+
+            // Search description
+            if item
+                .description()
+                .to_lowercase()
+                .contains(&term_lower)
+            {
+                return true;
+            }
+
+            // Search note body
+            if let Some(body) = item.note_body() {
+                if body.to_lowercase().contains(&term_lower) {
+                    return true;
+                }
+            }
+
+            // Search tags
+            if item
+                .tags()
+                .iter()
+                .any(|t| t.to_lowercase().contains(&term_lower))
+            {
                 return true;
             }
         }
@@ -312,11 +360,23 @@ impl Taskbook {
     // Silent methods for TUI (no render output)
 
     /// Create a task with explicit board and description (for TUI)
+    #[allow(dead_code)]
     pub fn create_task_direct(
         &self,
         boards: Vec<String>,
         description: String,
         priority: u8,
+    ) -> Result<u64> {
+        self.create_task_direct_with_tags(boards, description, priority, Vec::new())
+    }
+
+    /// Create a task with tags (for TUI)
+    pub fn create_task_direct_with_tags(
+        &self,
+        boards: Vec<String>,
+        description: String,
+        priority: u8,
+        tags: Vec<String>,
     ) -> Result<u64> {
         if description.is_empty() {
             return Err(TaskbookError::General("Description cannot be empty".into()));
@@ -324,21 +384,32 @@ impl Taskbook {
 
         let mut data = self.get_data()?;
         let id = self.generate_id(&data);
-        let task = Task::new(id, description, boards, priority);
+        let task = Task::new_with_tags(id, description, boards, priority, tags);
         data.insert(id.to_string(), StorageItem::Task(task));
         self.save(&data)?;
         Ok(id)
     }
 
     /// Create a note with explicit board and description (for TUI)
+    #[allow(dead_code)]
     pub fn create_note_direct(&self, boards: Vec<String>, description: String) -> Result<u64> {
+        self.create_note_direct_with_tags(boards, description, Vec::new())
+    }
+
+    /// Create a note with tags (for TUI)
+    pub fn create_note_direct_with_tags(
+        &self,
+        boards: Vec<String>,
+        description: String,
+        tags: Vec<String>,
+    ) -> Result<u64> {
         if description.is_empty() {
             return Err(TaskbookError::General("Description cannot be empty".into()));
         }
 
         let mut data = self.get_data()?;
         let id = self.generate_id(&data);
-        let note = Note::new(id, description, boards);
+        let note = Note::new_with_tags(id, description, boards, tags);
         data.insert(id.to_string(), StorageItem::Note(note));
         self.save(&data)?;
         Ok(id)
@@ -595,14 +666,14 @@ impl Taskbook {
     // Public API methods
 
     pub fn create_note(&self, desc: &[String]) -> Result<()> {
-        let (boards, description, id, _) = self.get_options(desc)?;
+        let CreateOptions { boards, description, id, tags, .. } = self.get_options(desc)?;
 
         if description.is_empty() {
             self.render.missing_desc();
             return Err(TaskbookError::InvalidId(0));
         }
 
-        let note = Note::new(id, description, boards);
+        let note = Note::new_with_tags(id, description, boards, tags);
         let mut data = self.get_data()?;
         data.insert(id.to_string(), StorageItem::Note(note));
         self.save(&data)?;
@@ -691,14 +762,14 @@ impl Taskbook {
     }
 
     pub fn create_task(&self, desc: &[String]) -> Result<()> {
-        let (boards, description, id, priority) = self.get_options(desc)?;
+        let CreateOptions { boards, description, id, priority, tags } = self.get_options(desc)?;
 
         if description.is_empty() {
             self.render.missing_desc();
             return Err(TaskbookError::InvalidId(0));
         }
 
-        let task = Task::new(id, description, boards, priority);
+        let task = Task::new_with_tags(id, description, boards, priority, tags);
         let mut data = self.get_data()?;
         data.insert(id.to_string(), StorageItem::Task(task));
         self.save(&data)?;
@@ -881,7 +952,7 @@ impl Taskbook {
         let mut result: HashMap<String, StorageItem> = HashMap::new();
 
         for (id, item) in &data {
-            if Self::has_terms(item.description(), terms) {
+            if Self::item_matches_terms(item, terms) {
                 result.insert(id.clone(), item.clone());
             }
         }
@@ -898,23 +969,39 @@ impl Taskbook {
 
         let mut boards: Vec<String> = Vec::new();
         let mut attributes: Vec<String> = Vec::new();
+        let mut tag_filters: Vec<String> = Vec::new();
 
         for term in terms {
-            let normalized = board::normalize_board_name(term);
-            if stored_boards
-                .iter()
-                .any(|b| board::board_eq(b, &normalized))
-            {
-                if !boards.iter().any(|b| board::board_eq(b, &normalized)) {
-                    boards.push(normalized);
-                }
+            if term.starts_with('+') && term.len() > 1 {
+                tag_filters.push(board::normalize_tag(term));
             } else {
-                attributes.push(term.clone());
+                let normalized = board::normalize_board_name(term);
+                if stored_boards
+                    .iter()
+                    .any(|b| board::board_eq(b, &normalized))
+                {
+                    if !boards.iter().any(|b| board::board_eq(b, &normalized)) {
+                        boards.push(normalized);
+                    }
+                } else {
+                    attributes.push(term.clone());
+                }
             }
         }
 
         let mut filtered_data = data.clone();
         self.filter_by_attributes(&attributes, &mut filtered_data);
+
+        // Filter by tags
+        if !tag_filters.is_empty() {
+            filtered_data.retain(|_, item| {
+                tag_filters.iter().all(|filter_tag| {
+                    item.tags()
+                        .iter()
+                        .any(|t| t.eq_ignore_ascii_case(filter_tag))
+                })
+            });
+        }
 
         let display_boards = if boards.is_empty() {
             self.get_boards(&filtered_data)
@@ -1090,5 +1177,118 @@ impl Taskbook {
         self.save(&data)?;
         self.render.success_clear(&ids_to_delete);
         Ok(())
+    }
+
+    /// Update tags on an item from CLI input.
+    /// Format: `@<id> +tag1 +tag2 -tag3`
+    /// `+tag` adds a tag, `-tag` removes a tag.
+    pub fn update_tags(&self, input: &[String]) -> Result<()> {
+        let targets: Vec<&String> = input.iter().filter(|x| x.starts_with('@')).collect();
+
+        if targets.is_empty() {
+            self.render.missing_id();
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        if targets.len() > 1 {
+            self.render.invalid_ids_number();
+            return Err(TaskbookError::InvalidId(0));
+        }
+
+        let target = targets[0];
+        let id_str = target.trim_start_matches('@');
+        let id: u64 = id_str.parse().map_err(|_| TaskbookError::InvalidId(0))?;
+
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+        let validated_ids = self.validate_ids(&[id], &existing_ids)?;
+        let id = validated_ids[0];
+
+        let mut add_tags: Vec<String> = Vec::new();
+        let mut remove_tags: Vec<String> = Vec::new();
+
+        for word in input {
+            if word == target {
+                continue;
+            }
+            if let Some(tag) = word.strip_prefix('+') {
+                let normalized = board::normalize_tag(&format!("+{}", tag));
+                if !normalized.is_empty() {
+                    add_tags.push(normalized);
+                }
+            } else if let Some(tag) = word.strip_prefix('-') {
+                let normalized = tag.trim().to_lowercase();
+                if !normalized.is_empty() {
+                    remove_tags.push(normalized);
+                }
+            }
+        }
+
+        if add_tags.is_empty() && remove_tags.is_empty() {
+            self.render.missing_tags();
+            return Err(TaskbookError::General("No tags provided".to_string()));
+        }
+
+        if let Some(item) = data.get_mut(&id.to_string()) {
+            let mut current_tags: Vec<String> = item.tags().to_vec();
+
+            // Remove tags
+            current_tags.retain(|t| {
+                !remove_tags
+                    .iter()
+                    .any(|r| t.eq_ignore_ascii_case(r))
+            });
+
+            // Add tags (dedup)
+            for tag in &add_tags {
+                if !current_tags
+                    .iter()
+                    .any(|t| t.eq_ignore_ascii_case(tag))
+                {
+                    current_tags.push(tag.clone());
+                }
+            }
+
+            item.set_tags(current_tags);
+        }
+
+        self.save(&data)?;
+        self.render.success_tag(id, &add_tags, &remove_tags);
+        Ok(())
+    }
+
+    /// Update tags without CLI output (for TUI)
+    pub fn update_tags_silent(
+        &self,
+        id: u64,
+        add_tags: &[String],
+        remove_tags: &[String],
+    ) -> Result<()> {
+        let mut data = self.get_data()?;
+        let existing_ids = self.get_ids(&data);
+        self.validate_ids_silent(&[id], &existing_ids)?;
+
+        if let Some(item) = data.get_mut(&id.to_string()) {
+            let mut current_tags: Vec<String> = item.tags().to_vec();
+
+            current_tags.retain(|t| {
+                !remove_tags
+                    .iter()
+                    .any(|r| t.eq_ignore_ascii_case(r))
+            });
+
+            for tag in add_tags {
+                if !current_tags
+                    .iter()
+                    .any(|t| t.eq_ignore_ascii_case(tag))
+                {
+                    current_tags.push(tag.clone());
+                }
+            }
+
+            item.set_tags(current_tags);
+        }
+
+        self.save(&data)
     }
 }

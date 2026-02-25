@@ -9,7 +9,7 @@ use crate::tui::app::App;
 use crate::tui::ui::centered_rect;
 
 pub fn render_help_popup(frame: &mut Frame, app: &App) {
-    let area = centered_rect(56, 38, frame.area());
+    let area = centered_rect(56, 42, frame.area());
 
     let block = Block::default()
         .title(" Keybindings & Commands ")
@@ -99,7 +99,7 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
         Line::from(Span::styled("  Slash Commands", section_style)),
         Line::from(vec![
             Span::styled("    /task    ", cmd_style),
-            Span::styled("@board Description p:2", desc_style),
+            Span::styled("@board +tag Description p:2", desc_style),
         ]),
         Line::from(vec![
             Span::styled("             ", cmd_style),
@@ -107,7 +107,7 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
         ]),
         Line::from(vec![
             Span::styled("    /note    ", cmd_style),
-            Span::styled("@board Title", desc_style),
+            Span::styled("@board +tag Title", desc_style),
         ]),
         Line::from(vec![
             Span::styled("    /edit    ", cmd_style),
@@ -124,6 +124,10 @@ pub fn render_help_popup(frame: &mut Frame, app: &App) {
         Line::from(vec![
             Span::styled("    /search  ", cmd_style),
             Span::styled("<term>", desc_style),
+        ]),
+        Line::from(vec![
+            Span::styled("    /tag     ", cmd_style),
+            Span::styled("@<id> +add -remove", desc_style),
         ]),
         Line::from(vec![
             Span::styled("    /clear   ", cmd_style),

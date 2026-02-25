@@ -38,6 +38,7 @@ const HELP_TEXT: &str = r#"
       --priority, -p     Update priority of task
       --restore, -r      Restore items from archive
       --star, -s         Star/unstar item
+      --tag              Add/remove tags on item
       --taskbook-dir     Define a custom taskbook directory
       --task, -t         Create task
       --timeline, -i     Display timeline view
@@ -67,8 +68,11 @@ const HELP_TEXT: &str = r#"
       $ tb --restore 4
       $ tb --star 2
       $ tb --task @coding @reviews Review PR #42
-      $ tb --task @coding Improve documentation
+      $ tb --task @coding +urgent Improve documentation
       $ tb --task Make some buttercream
+      $ tb --tag @3 +urgent +frontend
+      $ tb --tag @3 -urgent
+      $ tb --list +urgent
       $ tb --timeline
       $ tb --register --server http://localhost:8080 --username user --email a@b.com --password secret123
       $ tb --login --server http://localhost:8080 --username user --password secret123 --key <base64>
@@ -148,6 +152,10 @@ struct Cli {
     /// Star/unstar item
     #[arg(short = 's', long)]
     star: bool,
+
+    /// Add or remove tags on an item
+    #[arg(long)]
+    tag: bool,
 
     /// Create task
     #[arg(short = 't', long)]
@@ -278,7 +286,8 @@ fn main() {
         || cli.find
         || cli.list
         || cli.clear
-        || cli.timeline;
+        || cli.timeline
+        || cli.tag;
 
     // Run TUI if: no action flags, no CLI flag, and no input
     let run_tui = !cli.cli && !has_action_flags && cli.input.is_empty();
@@ -310,6 +319,7 @@ fn main() {
             cli.edit_note,
             cli.r#move,
             cli.clear,
+            cli.tag,
             cli.taskbook_dir,
         );
 

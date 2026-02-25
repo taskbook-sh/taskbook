@@ -86,6 +86,13 @@ impl Item for StorageItem {
         }
     }
 
+    fn tags(&self) -> &[String] {
+        match self {
+            StorageItem::Task(t) => &t.tags,
+            StorageItem::Note(n) => &n.tags,
+        }
+    }
+
     fn is_task(&self) -> bool {
         matches!(self, StorageItem::Task(_))
     }
@@ -159,6 +166,20 @@ impl StorageItem {
         match self {
             StorageItem::Task(t) => t.boards = boards,
             StorageItem::Note(n) => n.boards = boards,
+        }
+    }
+
+    pub fn tags(&self) -> &[String] {
+        match self {
+            StorageItem::Task(t) => &t.tags,
+            StorageItem::Note(n) => &n.tags,
+        }
+    }
+
+    pub fn set_tags(&mut self, tags: Vec<String>) {
+        match self {
+            StorageItem::Task(t) => t.tags = tags,
+            StorageItem::Note(n) => n.tags = tags,
         }
     }
 

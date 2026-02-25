@@ -151,24 +151,36 @@ fn execute_command(app: &mut App, cmd: ParsedCommand) -> Result<()> {
             board,
             description,
             priority,
+            tags,
         } => {
             let board_name = board
                 .map(|b| board::normalize_board_name(&b))
                 .or_else(|| app.filter.board_filter.clone())
                 .unwrap_or_else(|| "my board".to_string());
-            app.taskbook
-                .create_task_direct(vec![board_name.clone()], description, priority)?;
+            app.taskbook.create_task_direct_with_tags(
+                vec![board_name.clone()],
+                description,
+                priority,
+                tags,
+            )?;
             app.refresh_items()?;
             let display = board::display_name(&board_name);
             app.set_status(format!("Task created in {}", display), StatusKind::Success);
         }
-        ParsedCommand::Note { board, description } => {
+        ParsedCommand::Note {
+            board,
+            description,
+            tags,
+        } => {
             let board_name = board
                 .map(|b| board::normalize_board_name(&b))
                 .or_else(|| app.filter.board_filter.clone())
                 .unwrap_or_else(|| "my board".to_string());
-            app.taskbook
-                .create_note_direct(vec![board_name.clone()], description)?;
+            app.taskbook.create_note_direct_with_tags(
+                vec![board_name.clone()],
+                description,
+                tags,
+            )?;
             app.refresh_items()?;
             let display = board::display_name(&board_name);
             app.set_status(format!("Note created in {}", display), StatusKind::Success);
@@ -219,6 +231,9 @@ fn execute_command(app: &mut App, cmd: ParsedCommand) -> Result<()> {
             for id in &ids {
                 toggle_begin(app, *id)?;
             }
+        }
+        ParsedCommand::Tag { id, add, remove } => {
+            update_tags(app, id, &add, &remove)?;
         }
         ParsedCommand::Clear => {
             app.command_line.pending_confirm = Some(PendingAction::Clear);
@@ -523,6 +538,25 @@ fn copy_to_clipboard(app: &mut App, id: u64) -> Result<()> {
     app.taskbook.copy_to_clipboard_silent(&[id])?;
     app.set_status(
         format!("Copied item {} to clipboard", id),
+        StatusKind::Success,
+    );
+    Ok(())
+}
+
+fn update_tags(app: &mut App, id: u64, add: &[String], remove: &[String]) -> Result<()> {
+    app.taskbook.update_tags_silent(id, add, remove)?;
+    app.refresh_items()?;
+    let mut parts = Vec::new();
+    if !add.is_empty() {
+        let tags_str = add.iter().map(|t| format!("+{}", t)).collect::<Vec<_>>().join(" ");
+        parts.push(format!("added {}", tags_str));
+    }
+    if !remove.is_empty() {
+        let tags_str = remove.iter().map(|t| format!("-{}", t)).collect::<Vec<_>>().join(" ");
+        parts.push(format!("removed {}", tags_str));
+    }
+    app.set_status(
+        format!("Tags on item {}: {}", id, parts.join(", ")),
         StatusKind::Success,
     );
     Ok(())

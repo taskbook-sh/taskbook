@@ -33,6 +33,7 @@ pub fn run(
     edit_note: bool,
     r#move: bool,
     clear: bool,
+    tag: bool,
     taskbook_dir: Option<PathBuf>,
 ) -> Result<()> {
     let taskbook = Taskbook::new(taskbook_dir.as_deref())?;
@@ -115,6 +116,10 @@ pub fn run(
 
     if clear {
         return taskbook.clear();
+    }
+
+    if tag {
+        return taskbook.update_tags(&input);
     }
 
     // Default: display board view and stats

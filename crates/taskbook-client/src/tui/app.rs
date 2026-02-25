@@ -281,7 +281,16 @@ impl App {
         }
         if let Some(ref term) = self.filter.search_term {
             let term_lower = term.to_lowercase();
-            if !item.description().to_lowercase().contains(&term_lower) {
+            let in_description = item.description().to_lowercase().contains(&term_lower);
+            let in_body = item
+                .note_body()
+                .map(|b| b.to_lowercase().contains(&term_lower))
+                .unwrap_or(false);
+            let in_tags = item
+                .tags()
+                .iter()
+                .any(|t| t.to_lowercase().contains(&term_lower));
+            if !in_description && !in_body && !in_tags {
                 return false;
             }
         }
@@ -345,7 +354,16 @@ impl App {
                     .filter(|item| {
                         if let Some(ref term) = self.filter.search_term {
                             let term_lower = term.to_lowercase();
-                            if !item.description().to_lowercase().contains(&term_lower) {
+                            let in_desc = item.description().to_lowercase().contains(&term_lower);
+                            let in_body = item
+                                .note_body()
+                                .map(|b| b.to_lowercase().contains(&term_lower))
+                                .unwrap_or(false);
+                            let in_tags = item
+                                .tags()
+                                .iter()
+                                .any(|t| t.to_lowercase().contains(&term_lower));
+                            if !in_desc && !in_body && !in_tags {
                                 return false;
                             }
                         }
