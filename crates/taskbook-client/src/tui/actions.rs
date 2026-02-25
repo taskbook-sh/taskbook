@@ -11,9 +11,19 @@ use super::input_handler::{handle_text_input, InputResult};
 
 /// Handle a key event
 pub fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<()> {
-    // 1. Help popup → any key dismisses
-    if app.popup.is_some() {
-        app.popup = None;
+    // 1. Help popup → scroll with j/k/arrows, dismiss with q/Esc/other
+    if let Some(PopupState::Help { ref mut scroll }) = app.popup {
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                *scroll = scroll.saturating_add(1);
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                *scroll = scroll.saturating_sub(1);
+            }
+            _ => {
+                app.popup = None;
+            }
+        }
         return Ok(());
     }
 
@@ -64,20 +74,37 @@ fn handle_command_line_key(app: &mut App, key: KeyEvent) -> Result<()> {
         return Ok(());
     }
 
-    // Up/Down navigate suggestions (only if suggestions exist)
-    if !app.command_line.suggestions.is_empty() {
-        match key.code {
-            KeyCode::Up => {
+    // Up/Down navigate suggestions if visible, otherwise browse history
+    match key.code {
+        KeyCode::Up => {
+            if !app.command_line.suggestions.is_empty() {
                 let count = app.command_line.suggestions.len();
-                app.command_line.selected_suggestion = Some(match app.command_line.selected_suggestion
-                {
-                    None => count - 1,
-                    Some(0) => count - 1,
+                app.command_line.selected_suggestion =
+                    Some(match app.command_line.selected_suggestion {
+                        None => count - 1,
+                        Some(0) => count - 1,
+                        Some(i) => i - 1,
+                    });
+            } else if !app.command_history.is_empty() {
+                // Browse history (Up = older)
+                let new_idx = match app.history_index {
+                    None => {
+                        app.history_saved_input = app.command_line.input.clone();
+                        app.command_history.len() - 1
+                    }
+                    Some(0) => 0,
                     Some(i) => i - 1,
-                });
-                return Ok(());
+                };
+                app.history_index = Some(new_idx);
+                let entry = app.command_history[new_idx].clone();
+                app.command_line.cursor = entry.chars().count();
+                app.command_line.input = entry;
+                autocomplete::update_suggestions(app);
             }
-            KeyCode::Down => {
+            return Ok(());
+        }
+        KeyCode::Down => {
+            if !app.command_line.suggestions.is_empty() {
                 let count = app.command_line.suggestions.len();
                 app.command_line.selected_suggestion =
                     Some(match app.command_line.selected_suggestion {
@@ -85,10 +112,26 @@ fn handle_command_line_key(app: &mut App, key: KeyEvent) -> Result<()> {
                         Some(i) if i + 1 >= count => 0,
                         Some(i) => i + 1,
                     });
-                return Ok(());
+            } else if let Some(idx) = app.history_index {
+                // Browse history (Down = newer)
+                if idx + 1 >= app.command_history.len() {
+                    // Restore saved input
+                    app.history_index = None;
+                    let saved = app.history_saved_input.clone();
+                    app.command_line.cursor = saved.chars().count();
+                    app.command_line.input = saved;
+                } else {
+                    let new_idx = idx + 1;
+                    app.history_index = Some(new_idx);
+                    let entry = app.command_history[new_idx].clone();
+                    app.command_line.cursor = entry.chars().count();
+                    app.command_line.input = entry;
+                }
+                autocomplete::update_suggestions(app);
             }
-            _ => {}
+            return Ok(());
         }
+        _ => {}
     }
 
     // Use the existing text input handler for editing
@@ -101,6 +144,7 @@ fn handle_command_line_key(app: &mut App, key: KeyEvent) -> Result<()> {
         }
         InputResult::Submit => {
             let input = app.command_line.input.clone();
+            app.push_history(input.clone());
             app.deactivate_command_line();
             if !input.trim().is_empty() {
                 execute_input(app, &input)?;
@@ -259,7 +303,7 @@ fn execute_command(app: &mut App, cmd: ParsedCommand) -> Result<()> {
             app.set_status(msg.to_string(), StatusKind::Info);
         }
         ParsedCommand::Help => {
-            app.popup = Some(PopupState::Help);
+            app.popup = Some(PopupState::Help { scroll: 0 });
         }
         ParsedCommand::Quit => {
             app.quit();
@@ -270,8 +314,19 @@ fn execute_command(app: &mut App, cmd: ParsedCommand) -> Result<()> {
 
 /// Handle shortcut keys in normal (unfocused) mode
 fn handle_shortcut_key(app: &mut App, key: KeyEvent) -> Result<()> {
-    // Ctrl shortcuts should not trigger single-char shortcuts
+    // Ctrl+D / Ctrl+U for half-page navigation
     if key.modifiers.contains(KeyModifiers::CONTROL) {
+        match key.code {
+            KeyCode::Char('d') => {
+                let half = (app.content_height / 2).max(1) as usize;
+                app.select_down_by(half);
+            }
+            KeyCode::Char('u') => {
+                let half = (app.content_height / 2).max(1) as usize;
+                app.select_up_by(half);
+            }
+            _ => {}
+        }
         return Ok(());
     }
 
@@ -295,6 +350,14 @@ fn handle_shortcut_key(app: &mut App, key: KeyEvent) -> Result<()> {
         KeyCode::Char('k') | KeyCode::Up => app.select_previous(),
         KeyCode::Char('g') => app.select_first(),
         KeyCode::Char('G') => app.select_last(),
+        KeyCode::PageDown => {
+            let page = app.content_height.max(1) as usize;
+            app.select_down_by(page);
+        }
+        KeyCode::PageUp => {
+            let page = app.content_height.max(1) as usize;
+            app.select_up_by(page);
+        }
 
         // Enter to open note in editor or filter by board
         KeyCode::Enter => {
@@ -337,7 +400,7 @@ fn handle_shortcut_key(app: &mut App, key: KeyEvent) -> Result<()> {
 
         // Help
         KeyCode::Char('?') => {
-            app.popup = Some(PopupState::Help);
+            app.popup = Some(PopupState::Help { scroll: 0 });
         }
 
         // Slash or Tab activates command line

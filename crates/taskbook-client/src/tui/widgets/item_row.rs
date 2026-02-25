@@ -45,6 +45,9 @@ pub fn render_item_line(
         spans.push(Span::raw("   "));
     }
 
+    // Item ID
+    spans.push(Span::styled(format!("{:<4}", item.id()), app.theme.item_id));
+
     // Icon
     let (icon, icon_style) = if let Some(task) = item.as_task() {
         if task.is_complete {
