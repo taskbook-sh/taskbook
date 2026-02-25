@@ -15,7 +15,6 @@ devenv.lock
 .vscode/
 *.swp
 *.swo
-.claude
 # Kubernetes deployment (local only)
 k8s/
 
