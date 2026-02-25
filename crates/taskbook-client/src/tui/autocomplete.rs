@@ -26,7 +26,9 @@ const COMMANDS: &[(&str, &str)] = &[
 ];
 
 /// Commands that accept item ID references (@<id>)
-const ITEM_COMMANDS: &[&str] = &["check", "star", "begin", "delete", "edit", "move", "priority"];
+const ITEM_COMMANDS: &[&str] = &[
+    "check", "star", "begin", "delete", "edit", "move", "priority",
+];
 
 const MAX_SUGGESTIONS: usize = 8;
 
@@ -79,7 +81,10 @@ pub fn update_suggestions(app: &mut App) {
 
 /// Determine whether the current argument position should get item suggestions
 fn should_suggest_items(command: &str, text_to_cursor: &str, _last_space: usize) -> bool {
-    let after_command = text_to_cursor.split_once(' ').map(|(_, rest)| rest).unwrap_or("");
+    let after_command = text_to_cursor
+        .split_once(' ')
+        .map(|(_, rest)| rest)
+        .unwrap_or("");
     let args: Vec<&str> = after_command.split_whitespace().collect();
 
     match command {

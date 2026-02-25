@@ -27,6 +27,7 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     // Group items by board
+    let mut first_group = true;
     for board in boards_to_show {
         let board_items: Vec<&StorageItem> = app
             .items
@@ -57,9 +58,12 @@ pub fn render_board_view(frame: &mut Frame, app: &App, area: Rect) {
             continue;
         }
 
-        // Board header
-        lines.push(Line::from(""));
-        item_line_map.push(None);
+        // Board header (blank separator between groups, not before first)
+        if !first_group {
+            lines.push(Line::from(""));
+            item_line_map.push(None);
+        }
+        first_group = false;
 
         let stats_text = if total_tasks > 0 {
             format!(" [{}/{}]", complete_tasks, total_tasks)

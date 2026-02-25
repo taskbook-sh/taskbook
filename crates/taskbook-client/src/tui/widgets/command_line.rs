@@ -30,10 +30,7 @@ fn render_placeholder(frame: &mut Frame, _app: &App, area: Rect) {
 
     let line = Line::from(vec![
         Span::styled("  > ", prompt_style),
-        Span::styled(
-            "Type / or Tab for commands, ? for help",
-            placeholder_style,
-        ),
+        Span::styled("Type / or Tab for commands, ? for help", placeholder_style),
     ]);
 
     frame.render_widget(Paragraph::new(line), area);

@@ -447,8 +447,7 @@ impl App {
     /// Move selection down by n items
     pub fn select_down_by(&mut self, n: usize) {
         if !self.display_order.is_empty() {
-            self.selected_index =
-                (self.selected_index + n).min(self.display_order.len() - 1);
+            self.selected_index = (self.selected_index + n).min(self.display_order.len() - 1);
         }
     }
 

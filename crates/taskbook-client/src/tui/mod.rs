@@ -139,7 +139,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> 
             .draw(|f| ui::render(f, app))
             .map_err(|e| TaskbookError::Tui(e.to_string()))?;
 
-
         match events.next()? {
             event::Event::Key(key) => {
                 actions::handle_key_event(app, key)?;

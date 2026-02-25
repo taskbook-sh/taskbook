@@ -38,15 +38,12 @@ pub fn render_item_line(
 ) -> Line<'static> {
     let mut spans: Vec<Span> = Vec::new();
 
-    // Selection indicator
+    // Selection indicator + Item ID
     if is_selected {
-        spans.push(Span::styled(" > ", app.theme.info));
+        spans.push(Span::styled(format!(" >{} ", item.id()), app.theme.info));
     } else {
-        spans.push(Span::raw("   "));
+        spans.push(Span::styled(format!("  {} ", item.id()), app.theme.item_id));
     }
-
-    // Item ID
-    spans.push(Span::styled(format!("{:<4}", item.id()), app.theme.item_id));
 
     // Icon
     let (icon, icon_style) = if let Some(task) = item.as_task() {

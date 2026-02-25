@@ -29,21 +29,14 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
         let items_a = grouped.get(a).unwrap();
         let items_b = grouped.get(b).unwrap();
         // Use the maximum timestamp in the group to represent the group date
-        let ts_a = items_a
-            .iter()
-            .map(|i| i.timestamp())
-            .max()
-            .unwrap_or(0);
-        let ts_b = items_b
-            .iter()
-            .map(|i| i.timestamp())
-            .max()
-            .unwrap_or(0);
+        let ts_a = items_a.iter().map(|i| i.timestamp()).max().unwrap_or(0);
+        let ts_b = items_b.iter().map(|i| i.timestamp()).max().unwrap_or(0);
         ts_b.cmp(&ts_a) // Newest first
     });
 
     let today = chrono::Local::now().format("%a %b %d %Y").to_string();
 
+    let mut first_group = true;
     for date in dates {
         let date_items = grouped.get(&date).unwrap();
 
@@ -68,9 +61,12 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
             continue;
         }
 
-        // Date header
-        lines.push(Line::from(""));
-        item_line_map.push(None);
+        // Date header (blank separator between groups, not before first)
+        if !first_group {
+            lines.push(Line::from(""));
+            item_line_map.push(None);
+        }
+        first_group = false;
 
         let is_today = date == today;
         let date_header = if is_today {
@@ -86,8 +82,6 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
         };
         lines.push(Line::from(Span::styled(date_header, header_style)));
         item_line_map.push(None);
-        lines.push(Line::from("")); // Spacing after header
-        item_line_map.push(None);
 
         // Sort items by timestamp (newest first), then by ID (asc) to match display order
         let mut sorted_items = visible_items;
@@ -99,7 +93,7 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
 
         for item in sorted_items {
             let is_selected = app.selected_id() == Some(item.id());
-            
+
             // Format time
             let time_str = Local
                 .timestamp_millis_opt(item.timestamp())
@@ -108,13 +102,15 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 .unwrap_or_else(|| "??:??".to_string());
 
             let time_span = Span::styled(format!("  {} ", time_str), app.theme.muted);
-            
+
             // Title/Description
             let desc_style = if is_selected {
                 app.theme.selected.add_modifier(Modifier::BOLD)
             } else if let Some(task) = item.as_task() {
-                 if task.is_complete {
-                    app.theme.completed_text.remove_modifier(Modifier::CROSSED_OUT)
+                if task.is_complete {
+                    app.theme
+                        .completed_text
+                        .remove_modifier(Modifier::CROSSED_OUT)
                 } else if task.in_progress {
                     app.theme.warning
                 } else {
@@ -122,14 +118,14 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 }
             } else {
                 // Note title
-                 Style::default().fg(Color::Rgb(200, 200, 220))
+                Style::default().fg(Color::Rgb(200, 200, 220))
             };
 
             let mut title_spans = vec![time_span];
-            
+
             // Add icon for tasks
             if let Some(task) = item.as_task() {
-                 let (icon, icon_style) = if task.is_complete {
+                let (icon, icon_style) = if task.is_complete {
                     ("✔", app.theme.success)
                 } else if task.in_progress {
                     ("…", app.theme.warning)
@@ -138,8 +134,8 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 };
                 title_spans.push(Span::styled(format!("{} ", icon), icon_style));
             } else {
-                 // Note icon
-                 title_spans.push(Span::styled("● ", app.theme.info));
+                // Note icon
+                title_spans.push(Span::styled("● ", app.theme.info));
             }
 
             title_spans.push(Span::styled(item.description().to_string(), desc_style));
@@ -158,17 +154,13 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                         };
                         // Indent body
                         lines.push(Line::from(vec![
-                            Span::raw("        "), 
-                            Span::styled(line.to_string(), body_style)
+                            Span::raw("        "),
+                            Span::styled(line.to_string(), body_style),
                         ]));
                         item_line_map.push(Some(item.id()));
                     }
                 }
             }
-            
-            // Add spacing between entries
-            lines.push(Line::from(""));
-            item_line_map.push(None);
         }
     }
 
