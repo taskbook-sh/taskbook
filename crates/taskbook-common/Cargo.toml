@@ -1,6 +1,6 @@
 [package]
 name = "taskbook-common"
-version = "1.2.4"
+version = "1.2.5"
 edition = "2021"
 rust-version = "1.75"
 description = "Shared types for taskbook"
