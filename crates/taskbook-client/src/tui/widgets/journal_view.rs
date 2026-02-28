@@ -163,9 +163,6 @@ pub fn render_journal_view(frame: &mut Frame, app: &App, area: Rect) {
                 }
             }
 
-            // Add spacing between entries
-            lines.push(Line::from(""));
-            item_line_map.push(None);
         }
     }
 
