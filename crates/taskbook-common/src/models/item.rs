@@ -6,5 +6,6 @@ pub trait Item {
     fn description(&self) -> &str;
     fn is_starred(&self) -> bool;
     fn boards(&self) -> &[String];
+    fn tags(&self) -> &[String];
     fn is_task(&self) -> bool;
 }

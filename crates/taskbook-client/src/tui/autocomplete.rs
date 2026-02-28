@@ -13,6 +13,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("check", "Toggle task check"),
     ("star", "Toggle star"),
     ("begin", "Toggle in-progress"),
+    ("tag", "Add/remove tags on item"),
     ("clear", "Clear completed tasks"),
     ("rename-board", "Rename a board"),
     ("board", "Switch to board view"),
@@ -27,7 +28,7 @@ const COMMANDS: &[(&str, &str)] = &[
 
 /// Commands that accept item ID references (@<id>)
 const ITEM_COMMANDS: &[&str] = &[
-    "check", "star", "begin", "delete", "edit", "move", "priority",
+    "check", "star", "begin", "delete", "edit", "move", "priority", "tag",
 ];
 
 const MAX_SUGGESTIONS: usize = 8;
@@ -94,6 +95,8 @@ fn should_suggest_items(command: &str, text_to_cursor: &str, _last_space: usize)
         "move" => args.len() <= 1,
         // /priority @<id> <1-3> — only suggest for the first argument
         "priority" => args.len() <= 1,
+        // /tag @<id> +tag1 -tag2 — only suggest for the first argument
+        "tag" => args.len() <= 1,
         // Multi-ID commands: check, star, begin, delete — always suggest
         _ => true,
     }

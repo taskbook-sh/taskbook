@@ -32,6 +32,9 @@ pub struct Note {
 
     #[serde(deserialize_with = "board::deserialize_boards")]
     pub boards: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 impl Note {
@@ -46,6 +49,7 @@ impl Note {
             body: None,
             is_starred: false,
             boards,
+            tags: Vec::new(),
         }
     }
 
@@ -66,7 +70,20 @@ impl Note {
             body,
             is_starred: false,
             boards,
+            tags: Vec::new(),
         }
+    }
+
+    /// Create a note with tags
+    pub fn new_with_tags(
+        id: u64,
+        description: String,
+        boards: Vec<String>,
+        tags: Vec<String>,
+    ) -> Self {
+        let mut note = Self::new(id, description, boards);
+        note.tags = tags;
+        note
     }
 
     /// Returns the note title (alias for description)
@@ -124,6 +141,10 @@ impl Item for Note {
 
     fn boards(&self) -> &[String] {
         &self.boards
+    }
+
+    fn tags(&self) -> &[String] {
+        &self.tags
     }
 
     fn is_task(&self) -> bool {

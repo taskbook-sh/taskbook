@@ -81,6 +81,18 @@ pub fn render_item_line(
         spans.push(Span::styled(" [...]", app.theme.muted));
     }
 
+    // Tags
+    let tags = item.tags();
+    if !tags.is_empty() {
+        spans.push(Span::raw(" "));
+        for (i, tag) in tags.iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::raw(" "));
+            }
+            spans.push(Span::styled(format!("+{}", tag), app.theme.info));
+        }
+    }
+
     // Boards (for timeline view)
     if options.show_boards {
         let boards: Vec<String> = item

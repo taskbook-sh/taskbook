@@ -196,17 +196,34 @@ impl Render {
         println!("\n {} {}", display_title, correlation);
     }
 
+    fn color_tags(&self, tags: &[String]) -> String {
+        if tags.is_empty() {
+            return String::new();
+        }
+        tags.iter()
+            .map(|t| self.info(&board::display_tag(t)).to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     fn display_item_by_board(&self, item: &StorageItem) {
         let age = self.get_age(item.timestamp());
         let star = self.get_star(item);
         let prefix = self.build_prefix(item);
         let message = self.build_message(item);
+        let tags = self.color_tags(item.tags());
 
-        let suffix = if age.is_empty() {
-            star
-        } else {
-            format!("{} {}", age, star)
-        };
+        let mut suffix_parts: Vec<String> = Vec::new();
+        if !tags.is_empty() {
+            suffix_parts.push(tags);
+        }
+        if !age.is_empty() {
+            suffix_parts.push(age);
+        }
+        if !star.is_empty() {
+            suffix_parts.push(star);
+        }
+        let suffix = suffix_parts.join(" ");
 
         let icon = self.get_item_icon(item);
         println!("{} {} {} {}", prefix, icon, message, suffix);
@@ -223,7 +240,19 @@ impl Render {
         let prefix = self.build_prefix(item);
         let message = self.build_message(item);
         let boards_str = self.color_boards(&boards);
-        let suffix = format!("{} {}", boards_str, star);
+        let tags = self.color_tags(item.tags());
+
+        let mut suffix_parts: Vec<String> = Vec::new();
+        if !tags.is_empty() {
+            suffix_parts.push(tags);
+        }
+        if !boards_str.is_empty() {
+            suffix_parts.push(boards_str);
+        }
+        if !star.is_empty() {
+            suffix_parts.push(star);
+        }
+        let suffix = suffix_parts.join(" ");
 
         let icon = self.get_item_icon(item);
         println!("{} {} {} {}", prefix, icon, message, suffix);
@@ -503,5 +532,41 @@ impl Render {
 
     pub fn note_cancelled(&self) {
         println!("\n {} Note creation cancelled", self.muted("○"));
+    }
+
+    pub fn missing_tags(&self) {
+        eprintln!(
+            "\n {} No tags were given as input. Use +tag to add or -tag to remove.",
+            self.error("✖")
+        );
+    }
+
+    pub fn success_tag(&self, id: u64, added: &[String], removed: &[String]) {
+        if !added.is_empty() {
+            let tags_str = added
+                .iter()
+                .map(|t| format!("+{}", t))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!(
+                "\n {} Added tags {} to item: {}",
+                self.success("✔"),
+                self.info(&tags_str),
+                self.muted(&id.to_string())
+            );
+        }
+        if !removed.is_empty() {
+            let tags_str = removed
+                .iter()
+                .map(|t| format!("-{}", t))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!(
+                "\n {} Removed tags {} from item: {}",
+                self.success("✔"),
+                self.warning(&tags_str),
+                self.muted(&id.to_string())
+            );
+        }
     }
 }

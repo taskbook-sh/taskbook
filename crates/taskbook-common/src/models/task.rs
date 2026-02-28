@@ -33,6 +33,9 @@ pub struct Task {
 
     #[serde(deserialize_with = "board::deserialize_boards")]
     pub boards: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 impl Task {
@@ -50,7 +53,21 @@ impl Task {
             in_progress: false,
             priority: priority.clamp(1, 3),
             boards,
+            tags: Vec::new(),
         }
+    }
+
+    /// Creates a new task with tags.
+    pub fn new_with_tags(
+        id: u64,
+        description: String,
+        boards: Vec<String>,
+        priority: u8,
+        tags: Vec<String>,
+    ) -> Self {
+        let mut task = Self::new(id, description, boards, priority);
+        task.tags = tags;
+        task
     }
 }
 
@@ -77,6 +94,10 @@ impl Item for Task {
 
     fn boards(&self) -> &[String] {
         &self.boards
+    }
+
+    fn tags(&self) -> &[String] {
+        &self.tags
     }
 
     fn is_task(&self) -> bool {
