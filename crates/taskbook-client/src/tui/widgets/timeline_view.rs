@@ -37,6 +37,7 @@ pub fn render_timeline_view(frame: &mut Frame, app: &App, area: Rect) {
 
     let today = chrono::Local::now().format("%a %b %d %Y").to_string();
 
+    let mut first_group = true;
     for date in dates {
         let date_items = grouped.get(&date).unwrap();
 
@@ -60,9 +61,12 @@ pub fn render_timeline_view(frame: &mut Frame, app: &App, area: Rect) {
             continue;
         }
 
-        // Date header
-        lines.push(Line::from(""));
-        item_line_map.push(None);
+        // Date header (blank separator between groups, not before first)
+        if !first_group {
+            lines.push(Line::from(""));
+            item_line_map.push(None);
+        }
+        first_group = false;
 
         let is_today = date == today;
         let date_header = if total_tasks > 0 {

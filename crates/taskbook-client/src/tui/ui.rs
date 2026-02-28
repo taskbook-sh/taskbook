@@ -5,6 +5,8 @@ use ratatui::{
     Frame,
 };
 
+use crate::config::SortMethod;
+
 use super::app::{App, PopupState, ViewMode};
 use super::widgets::{
     board_view::render_board_view, command_line::render_autocomplete,
@@ -14,7 +16,7 @@ use super::widgets::{
 };
 
 /// Render the entire UI
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -25,6 +27,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         ])
         .split(frame.area());
 
+    app.content_height = chunks[1].height;
     render_header(frame, app, chunks[0]);
     render_content(frame, app, chunks[1]);
     render_command_line(frame, app, chunks[2]);
@@ -58,6 +61,15 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         spans.push(Span::raw("  "));
         spans.push(Span::styled(format!("[Filter: {}]", board), app.theme.info));
         spans.push(Span::styled(" (Esc to clear)", app.theme.muted));
+    }
+
+    // Show sort indicator (only in board view, only when not default)
+    if app.view == ViewMode::Board && app.sort_method != SortMethod::Id {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(
+            format!("[Sort: {}]", app.sort_method.display_name()),
+            app.theme.info,
+        ));
     }
 
     // Show hide completed indicator
@@ -104,7 +116,7 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_popup(frame: &mut Frame, app: &App, popup: &PopupState) {
     match popup {
-        PopupState::Help => render_help_popup(frame, app),
+        PopupState::Help { scroll } => render_help_popup(frame, app, *scroll),
     }
 }
 
