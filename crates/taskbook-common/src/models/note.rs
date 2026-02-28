@@ -75,7 +75,12 @@ impl Note {
     }
 
     /// Create a note with tags
-    pub fn new_with_tags(id: u64, description: String, boards: Vec<String>, tags: Vec<String>) -> Self {
+    pub fn new_with_tags(
+        id: u64,
+        description: String,
+        boards: Vec<String>,
+        tags: Vec<String>,
+    ) -> Self {
         let mut note = Self::new(id, description, boards);
         note.tags = tags;
         note

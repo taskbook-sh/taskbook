@@ -83,6 +83,14 @@ pub struct App {
     cached_stats: Stats,
     /// Flag to request a full terminal redraw (e.g. after suspend/resume)
     pub needs_full_redraw: bool,
+    /// Last known content area height (updated each render frame)
+    pub content_height: u16,
+    /// Command history (most recent last)
+    pub command_history: Vec<String>,
+    /// Current position when browsing history (None = not browsing)
+    pub history_index: Option<usize>,
+    /// Saved input before browsing history
+    pub history_saved_input: String,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,7 +105,7 @@ pub enum ViewMode {
 
 #[derive(Debug, Clone)]
 pub enum PopupState {
-    Help,
+    Help { scroll: u16 },
 }
 
 /// Command line state for the bottom input bar
@@ -197,6 +205,10 @@ impl App {
             config,
             display_order: Vec::new(),
             needs_full_redraw: false,
+            content_height: 20,
+            command_history: Vec::new(),
+            history_index: None,
+            history_saved_input: String::new(),
             cached_stats: Stats {
                 percent: 0,
                 complete: 0,
@@ -459,6 +471,18 @@ impl App {
         }
     }
 
+    /// Move selection up by n items
+    pub fn select_up_by(&mut self, n: usize) {
+        self.selected_index = self.selected_index.saturating_sub(n);
+    }
+
+    /// Move selection down by n items
+    pub fn select_down_by(&mut self, n: usize) {
+        if !self.display_order.is_empty() {
+            self.selected_index = (self.selected_index + n).min(self.display_order.len() - 1);
+        }
+    }
+
     /// Set status message
     pub fn set_status(&mut self, text: String, kind: StatusKind) {
         self.status_message = Some(StatusMessage {
@@ -519,6 +543,22 @@ impl App {
     /// Deactivate the command line and clear state
     pub fn deactivate_command_line(&mut self) {
         self.command_line = CommandLineState::default();
+        self.history_index = None;
+        self.history_saved_input.clear();
+    }
+
+    /// Push a command to history (deduplicates consecutive)
+    pub fn push_history(&mut self, cmd: String) {
+        if !cmd.trim().is_empty() {
+            // Don't duplicate if same as last entry
+            if self.command_history.last().map(|s| s.as_str()) != Some(cmd.trim()) {
+                self.command_history.push(cmd.trim().to_string());
+            }
+            // Cap history at 50 entries
+            if self.command_history.len() > 50 {
+                self.command_history.remove(0);
+            }
+        }
     }
 
     /// Quit the application

@@ -567,7 +567,9 @@ mod tests {
     fn test_parse_note_quoted_board() {
         let result = parse_command("/note @\"MiST: IT-Leder\" Important note").unwrap();
         match result {
-            ParsedCommand::Note { board, description, .. } => {
+            ParsedCommand::Note {
+                board, description, ..
+            } => {
                 assert_eq!(board.as_deref(), Some("MiST: IT-Leder"));
                 assert_eq!(description, "Important note");
             }

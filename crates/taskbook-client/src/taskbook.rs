@@ -210,11 +210,7 @@ impl Taskbook {
             }
 
             // Search description
-            if item
-                .description()
-                .to_lowercase()
-                .contains(&term_lower)
-            {
+            if item.description().to_lowercase().contains(&term_lower) {
                 return true;
             }
 
@@ -666,7 +662,13 @@ impl Taskbook {
     // Public API methods
 
     pub fn create_note(&self, desc: &[String]) -> Result<()> {
-        let CreateOptions { boards, description, id, tags, .. } = self.get_options(desc)?;
+        let CreateOptions {
+            boards,
+            description,
+            id,
+            tags,
+            ..
+        } = self.get_options(desc)?;
 
         if description.is_empty() {
             self.render.missing_desc();
@@ -762,7 +764,13 @@ impl Taskbook {
     }
 
     pub fn create_task(&self, desc: &[String]) -> Result<()> {
-        let CreateOptions { boards, description, id, priority, tags } = self.get_options(desc)?;
+        let CreateOptions {
+            boards,
+            description,
+            id,
+            priority,
+            tags,
+        } = self.get_options(desc)?;
 
         if description.is_empty() {
             self.render.missing_desc();
@@ -1233,18 +1241,11 @@ impl Taskbook {
             let mut current_tags: Vec<String> = item.tags().to_vec();
 
             // Remove tags
-            current_tags.retain(|t| {
-                !remove_tags
-                    .iter()
-                    .any(|r| t.eq_ignore_ascii_case(r))
-            });
+            current_tags.retain(|t| !remove_tags.iter().any(|r| t.eq_ignore_ascii_case(r)));
 
             // Add tags (dedup)
             for tag in &add_tags {
-                if !current_tags
-                    .iter()
-                    .any(|t| t.eq_ignore_ascii_case(tag))
-                {
+                if !current_tags.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
                     current_tags.push(tag.clone());
                 }
             }
@@ -1271,17 +1272,10 @@ impl Taskbook {
         if let Some(item) = data.get_mut(&id.to_string()) {
             let mut current_tags: Vec<String> = item.tags().to_vec();
 
-            current_tags.retain(|t| {
-                !remove_tags
-                    .iter()
-                    .any(|r| t.eq_ignore_ascii_case(r))
-            });
+            current_tags.retain(|t| !remove_tags.iter().any(|r| t.eq_ignore_ascii_case(r)));
 
             for tag in add_tags {
-                if !current_tags
-                    .iter()
-                    .any(|t| t.eq_ignore_ascii_case(tag))
-                {
+                if !current_tags.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
                     current_tags.push(tag.clone());
                 }
             }
