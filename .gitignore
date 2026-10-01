@@ -12,7 +12,6 @@ devenv.lock
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 # Kubernetes deployment (local only)
