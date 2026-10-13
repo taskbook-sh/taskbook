@@ -141,6 +141,16 @@ async fn replace_items(
 
     let mut tx = pool.begin().await.map_err(ServerError::Database)?;
 
+    // Serialize concurrent replaces for the same user. Without this, two
+    // overlapping transactions can both delete the old rows and then insert
+    // the same keys, failing the second one with a unique-constraint
+    // violation. The lock is released on commit or rollback.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ServerError::Database)?;
+
     sqlx::query("DELETE FROM items WHERE user_id = $1 AND archived = $2")
         .bind(user_id)
         .bind(archived)
@@ -207,6 +217,75 @@ mod tests {
     fn rows_to_encrypted_items_empty_input() {
         let map = rows_to_encrypted_items(vec![]);
         assert!(map.is_empty());
+    }
+
+    /// Concurrent replaces for the same user must not fail with a
+    /// duplicate-key error. Needs a PostgreSQL database:
+    /// `TB_TEST_DATABASE_URL=postgres://... cargo test -p taskbook-server -- --ignored`
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires PostgreSQL (set TB_TEST_DATABASE_URL)"]
+    async fn replace_items_concurrent_same_user() {
+        let url = std::env::var("TB_TEST_DATABASE_URL").expect("TB_TEST_DATABASE_URL must be set");
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(16)
+            .connect(&url)
+            .await
+            .expect("connect to test database");
+        sqlx::migrate!("src/migrations")
+            .run(&pool)
+            .await
+            .expect("run migrations");
+
+        let name = format!("race-{}", uuid::Uuid::new_v4().simple());
+        let (user_id,): (uuid::Uuid,) = sqlx::query_as(
+            "INSERT INTO users (username, email, password) VALUES ($1, $2, 'x') RETURNING id",
+        )
+        .bind(&name)
+        .bind(format!("{name}@example.com"))
+        .fetch_one(&pool)
+        .await
+        .expect("insert test user");
+
+        let items: HashMap<String, EncryptedItemData> = (0..50)
+            .map(|i| {
+                (
+                    format!("item-{i}"),
+                    EncryptedItemData {
+                        data: base64::engine::general_purpose::STANDARD.encode(b"data"),
+                        nonce: base64::engine::general_purpose::STANDARD.encode(b"nonce"),
+                    },
+                )
+            })
+            .collect();
+
+        for _ in 0..5 {
+            let tasks: Vec<_> = (0..8)
+                .map(|_| {
+                    let pool = pool.clone();
+                    let items = items.clone();
+                    tokio::spawn(async move { replace_items(&pool, user_id, false, &items).await })
+                })
+                .collect();
+            for task in tasks {
+                task.await
+                    .expect("task panicked")
+                    .expect("concurrent replace_items failed");
+            }
+        }
+
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM items WHERE user_id = $1 AND archived = false")
+                .bind(user_id)
+                .fetch_one(&pool)
+                .await
+                .expect("count items");
+        assert_eq!(count, 50);
+
+        sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(user_id)
+            .execute(&pool)
+            .await
+            .expect("delete test user");
     }
 
     #[test]
