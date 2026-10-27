@@ -25,6 +25,23 @@ fn prompt_password(message: &str) -> Result<String> {
         .map_err(|e| TaskbookError::General(format!("failed to read password: {e}")))
 }
 
+/// Compare two server URLs using the same trailing-slash normalization as
+/// `ApiClient::new`.
+fn same_server_url(a: &str, b: &str) -> bool {
+    a.trim_end_matches('/') == b.trim_end_matches('/')
+}
+
+/// Resolve the server URL for auth commands: an explicit `--server` value
+/// wins; otherwise fall back to the configured sync server when sync is
+/// already enabled.
+fn configured_server_url(flag: Option<&str>, config: &Config) -> Option<String> {
+    match flag {
+        Some(s) => Some(s.to_string()),
+        None if config.sync.enabled => Some(config.sync.server_url.clone()),
+        None => None,
+    }
+}
+
 /// Register a new account on the server (interactive).
 pub fn register(
     server_url: Option<&str>,
@@ -35,8 +52,14 @@ pub fn register(
     println!("{}", "Register new account".bold());
     println!();
 
-    let server = match server_url {
-        Some(s) => s.to_string(),
+    let mut config = Config::load_or_default();
+    let server = match configured_server_url(server_url, &config) {
+        Some(s) => {
+            if server_url.is_none() {
+                println!("Using server: {}", s);
+            }
+            s
+        }
         None => prompt("Server URL: ")?,
     };
 
@@ -83,7 +106,6 @@ pub fn register(
     creds.save()?;
 
     // Enable sync in config
-    let mut config = Config::load_or_default();
     config.enable_sync(&server)?;
 
     println!();
@@ -111,8 +133,14 @@ pub fn login(
     println!("{}", "Login".bold());
     println!();
 
-    let server = match server_url {
-        Some(s) => s.to_string(),
+    let mut config = Config::load_or_default();
+    let server = match configured_server_url(server_url, &config) {
+        Some(s) => {
+            if server_url.is_none() {
+                println!("Using server: {}", s);
+            }
+            s
+        }
         None => prompt("Server URL: ")?,
     };
 
@@ -146,7 +174,6 @@ pub fn login(
     creds.save()?;
 
     // Enable sync in config
-    let mut config = Config::load_or_default();
     config.enable_sync(&server)?;
 
     println!();
@@ -193,7 +220,28 @@ pub fn status() -> Result<()> {
             println!("Server URL:  {}", creds.server_url);
 
             if config.sync.enabled {
-                let client = ApiClient::new(&creds.server_url, Some(&creds.token));
+                if !same_server_url(&creds.server_url, &config.sync.server_url) {
+                    println!(
+                        "{}",
+                        format!(
+                            "Warning: credentials were saved for {} (config points to {})",
+                            creds.server_url, config.sync.server_url
+                        )
+                        .yellow()
+                    );
+                    // A bearer token issued by one server must not be sent
+                    // to another; skip validation and require re-auth.
+                    println!("Session:     {}", "not checked".yellow());
+                    println!(
+                        "{}",
+                        "Hint: run `tb --login` to authenticate against the configured server."
+                            .dimmed()
+                    );
+                    return Ok(());
+                }
+                // Validate the session against the configured server (user's
+                // intent), not a potentially stale credentials URL.
+                let client = ApiClient::new(&config.sync.server_url, Some(&creds.token));
                 match client.get_me() {
                     Ok(me) => {
                         println!("Session:     {}", "valid".green());
@@ -202,6 +250,7 @@ pub fn status() -> Result<()> {
                     Err(e) => {
                         println!("Session:     {}", "invalid".red());
                         println!("Error:       {}", e);
+                        println!("{}", "Hint: run `tb --login` to re-authenticate.".dimmed());
                     }
                 }
             }
@@ -212,4 +261,47 @@ pub fn status() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config_with_sync(enabled: bool, server_url: &str) -> Config {
+        let mut config = Config::default();
+        config.sync.enabled = enabled;
+        config.sync.server_url = server_url.to_string();
+        config
+    }
+
+    #[test]
+    fn flag_wins_over_configured_server() {
+        let config = config_with_sync(true, "http://configured.example");
+        assert_eq!(
+            configured_server_url(Some("http://flag.example"), &config),
+            Some("http://flag.example".to_string())
+        );
+    }
+
+    #[test]
+    fn configured_server_used_when_sync_enabled() {
+        let config = config_with_sync(true, "http://configured.example");
+        assert_eq!(
+            configured_server_url(None, &config),
+            Some("http://configured.example".to_string())
+        );
+    }
+
+    #[test]
+    fn no_fallback_when_sync_disabled() {
+        let config = config_with_sync(false, "http://configured.example");
+        assert_eq!(configured_server_url(None, &config), None);
+    }
+
+    #[test]
+    fn same_server_url_ignores_trailing_slash() {
+        assert!(same_server_url("http://a.example", "http://a.example/"));
+        assert!(same_server_url("http://a.example/", "http://a.example"));
+        assert!(!same_server_url("http://a.example", "http://b.example"));
+    }
 }
