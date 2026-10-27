@@ -173,12 +173,14 @@ tb --move @<id> <board>
 tb -m @<id> <board>
 ```
 
-Moves an item to a different board. Opens a board picker if the board name is omitted.
+Moves an item to one or more boards. The listed boards replace the item's current boards; omitting the board name is an error.
 
 ```bash
 tb --move @3 work
-tb --move @3 @personal   # @ prefix is optional for board name
+tb --move @3 work personal   # now on exactly these two boards
 ```
+
+Board names are given bare. A second `@`-prefixed word is read as another item ID, so `tb --move @3 @personal` fails with "More than one ids were given".
 
 ## Deleting and Restoring
 
