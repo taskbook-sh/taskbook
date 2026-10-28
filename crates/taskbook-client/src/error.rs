@@ -11,6 +11,9 @@ pub enum TaskbookError {
     #[error("Invalid item ID: {0}")]
     InvalidId(u64),
 
+    #[error("No description was given as input")]
+    MissingDescription,
+
     #[error("Invalid custom directory: {0}")]
     InvalidDirectory(String),
 

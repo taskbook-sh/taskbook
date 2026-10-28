@@ -350,7 +350,10 @@ fn main() {
         );
 
         if let Err(e) = result {
-            eprintln!("{}", e);
+            // Render has already reported a missing description.
+            if !matches!(e, error::TaskbookError::MissingDescription) {
+                eprintln!("{}", e);
+            }
             process::exit(1);
         }
     }

@@ -52,6 +52,14 @@ tb --task @work "Review pull request"
 tb --task @coding @review "Implement feature X"  # Multiple boards
 ```
 
+Each argument is classified whole by how it starts, so pass the board and the description as separate arguments. A quoted argument starting with `@` is a single board name, which is how to create a board containing spaces (and is required for `@` in PowerShell). Likewise an argument starting with `+` is a tag and one starting with `due:` is a due date, while `p:N` must be the entire argument. Markers later in a quoted description stay literal. These rules apply to notes as well.
+
+```bash
+tb --task "@Work Projects" "Write report"   # Board "Work Projects"
+tb --task "@coding Fix the bug"             # Rejected: whole argument is the board name, no description
+tb --task "Reply to @alice about the +1"    # Description kept as typed, default board
+```
+
 **Priority**: Append `p:N` where N is 1 (normal), 2 (medium), or 3 (high):
 
 ```bash

@@ -318,4 +318,24 @@ mod tests {
     fn test_display_tag() {
         assert_eq!(display_tag("urgent"), "+urgent");
     }
+
+    // Each argv element is classified whole: quoting keeps a board name with
+    // spaces together, and keeps markers inside a description literal.
+    #[test]
+    fn test_parse_cli_input_quoted_board_keeps_spaces() {
+        let input: Vec<String> = vec!["@Work Projects".into(), "Write report".into()];
+        let parsed = parse_cli_input(&input).unwrap();
+        assert_eq!(parsed.boards, vec!["Work Projects"]);
+        assert_eq!(parsed.description, "Write report");
+    }
+
+    #[test]
+    fn test_parse_cli_input_quoted_description_keeps_markers_literal() {
+        let input: Vec<String> = vec!["Reply to @alice about the +1 p:3".into()];
+        let parsed = parse_cli_input(&input).unwrap();
+        assert_eq!(parsed.boards, vec![DEFAULT_BOARD]);
+        assert!(parsed.tags.is_empty());
+        assert_eq!(parsed.priority, 1);
+        assert_eq!(parsed.description, "Reply to @alice about the +1 p:3");
+    }
 }
