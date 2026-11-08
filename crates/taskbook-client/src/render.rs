@@ -327,11 +327,7 @@ impl Render {
     }
 
     pub fn display_by_date(&self, data: &HashMap<String, Vec<&StorageItem>>) {
-        // Sort dates chronologically (most recent first based on actual date parsing)
-        let mut dates: Vec<_> = data.keys().collect();
-        dates.sort_by(|a, b| b.cmp(a));
-
-        for date in dates {
+        for date in dates_newest_first(data.keys()) {
             let items = &data[date];
 
             if self.is_board_complete(items) && !self.config.display_complete_tasks {
@@ -618,5 +614,61 @@ impl Render {
                 self.muted(&id.to_string())
             );
         }
+    }
+}
+
+/// Date-group keys in display order, newest first.
+///
+/// Keys are display strings in the format items are created with
+/// (`%a %b %d %Y`, e.g. "Wed Oct 21 2026"). Compared as strings they sort by
+/// weekday name, then month name, so parse them. Keys that do not parse sort
+/// after every parsed key, in descending string order as before.
+fn dates_newest_first<'a>(keys: impl IntoIterator<Item = &'a String>) -> Vec<&'a String> {
+    let mut dates: Vec<_> = keys.into_iter().collect();
+    dates.sort_by_cached_key(|key| {
+        let date = chrono::NaiveDate::parse_from_str(key, "%a %b %d %Y").ok();
+        std::cmp::Reverse((date, key.to_string()))
+    });
+    dates
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn order(keys: &[&str]) -> Vec<String> {
+        let keys: Vec<String> = keys.iter().map(|k| k.to_string()).collect();
+        dates_newest_first(&keys).into_iter().cloned().collect()
+    }
+
+    #[test]
+    fn dates_newest_first_orders_by_calendar_date_not_weekday_name() {
+        // As strings, descending: Wed, Thu, Sat, Fri.
+        let keys = [
+            "Wed Oct 21 2026",
+            "Fri Oct 23 2026",
+            "Sat Jan 02 2027",
+            "Thu Oct 22 2026",
+        ];
+
+        assert_eq!(
+            order(&keys),
+            [
+                "Sat Jan 02 2027",
+                "Fri Oct 23 2026",
+                "Thu Oct 22 2026",
+                "Wed Oct 21 2026",
+            ]
+        );
+    }
+
+    #[test]
+    fn dates_newest_first_puts_unparseable_keys_last() {
+        let keys = ["not a date", "Mon Jan 05 2026", "Tue Jan 06 2026"];
+
+        assert_eq!(
+            order(&keys),
+            ["Tue Jan 06 2026", "Mon Jan 05 2026", "not a date"]
+        );
     }
 }
