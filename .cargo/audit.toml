@@ -1,0 +1,14 @@
+# cargo-audit configuration (https://github.com/rustsec/rustsec/tree/main/cargo-audit)
+
+[advisories]
+ignore = [
+    # libsqlite3-sys (bundled C SQLite, CVE-2026-119375).
+    # Present in Cargo.lock only as an optional dependency of sqlx's SQLite
+    # driver. We enable only the `postgres` feature, so it is never compiled:
+    # `cargo tree --target all -i libsqlite3-sys` prints nothing and
+    # `cargo deny check advisories` (which walks the real build graph) does
+    # not report it. sqlx-sqlite 0.9.0 requires `libsqlite3-sys < 0.38`, so the
+    # fixed 0.39 cannot be selected yet.
+    # Remove this entry once sqlx permits libsqlite3-sys >= 0.39.
+    "RUSTSEC-2026-0459",
+]
