@@ -2,7 +2,7 @@
 name = "taskbook-client"
 version = "1.5.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.89"
 description = "Tasks, boards & notes for the command-line habitat"
 license = "MIT"
 repository = "https://github.com/klaussinani/taskbook"
@@ -15,7 +15,7 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 colored = "3"
-dirs = "6"
+dirs = "7"
 chrono = "0.4"
 arboard = "3"
 uuid = { version = "1", features = ["v4"] }
@@ -23,7 +23,7 @@ thiserror = "2"
 ratatui = "0.30"
 crossterm = "0.29"
 reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls"] }
-base64 = "0.22"
+base64 = "0.23"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 rpassword = "7"
 fs2 = "0.4"
