@@ -3623,7 +3623,7 @@ dependencies = [
 
 [[package]]
 name = "taskbook-client"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "arboard",
  "base64 0.23.1",
@@ -3647,7 +3647,7 @@ dependencies = [
 
 [[package]]
 name = "taskbook-common"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "aes-gcm",
  "chrono",
@@ -3658,7 +3658,7 @@ dependencies = [
 
 [[package]]
 name = "taskbook-server"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "argon2",
  "axum",
